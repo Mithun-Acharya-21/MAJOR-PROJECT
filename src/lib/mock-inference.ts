@@ -71,7 +71,7 @@ export function runMockInference(text: string, faceMood: keyof typeof EMOTION_PR
 
   const textScore = clamp(0.2 + (positives - negatives * 0.9) / Math.sqrt(words) / 1.6);
 
-  const emotions = EMOTION_PRESETS[faceMood] ?? EMOTION_PRESETS.none;
+  const emotions: EmotionScore[] = EMOTION_PRESETS[faceMood] ?? EMOTION_PRESETS["none"]!;
   const sad = emotions.find((e) => e.label === "Sad")?.value ?? 0.2;
   const happy = emotions.find((e) => e.label === "Happy")?.value ?? 0.2;
   const faceScore = faceMood === "none" ? textScore : clamp(0.25 + sad * 0.95 - happy * 0.5);
