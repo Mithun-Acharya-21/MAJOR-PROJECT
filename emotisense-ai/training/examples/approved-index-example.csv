@@ -1,0 +1,8 @@
+record_id,participant_id,session_id,dataset_id,dataset_version,label,purpose,alignment,content_hash
+r001,p01,s01,example-aligned,v1,control,multimodal_depression_finetuning,participant_session_aligned,hash-r001
+r002,p02,s02,example-aligned,v1,control,multimodal_depression_finetuning,participant_session_aligned,hash-r002
+r003,p03,s03,example-aligned,v1,control,multimodal_depression_finetuning,participant_session_aligned,hash-r003
+r004,p04,s04,example-aligned,v1,elevated,multimodal_depression_finetuning,participant_session_aligned,hash-r004
+r005,p05,s05,example-aligned,v1,elevated,multimodal_depression_finetuning,participant_session_aligned,hash-r005
+r006,p06,s06,example-aligned,v1,elevated,multimodal_depression_finetuning,participant_session_aligned,hash-r006
+

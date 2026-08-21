@@ -1,0 +1,13 @@
+participant_id,session_id,dataset_name,label,has_text,has_audio,has_video,text_path,audio_path,video_path,text_quality,audio_quality,video_quality
+P001,S001,daic_woz,depressed,1,1,1,data/processed/P001/transcript.txt,data/processed/P001/audio.wav,data/processed/P001/video.mp4,0.92,0.87,0.81
+P002,S002,daic_woz,control,1,1,1,data/processed/P002/transcript.txt,data/processed/P002/audio.wav,data/processed/P002/video.mp4,0.95,0.90,0.88
+P003,S003,daic_woz,depressed,1,1,0,data/processed/P003/transcript.txt,data/processed/P003/audio.wav,,0.88,0.79,
+P004,S004,daic_woz,control,1,0,1,data/processed/P004/transcript.txt,,data/processed/P004/video.mp4,0.91,,0.85
+P005,S005,daic_woz,depressed,1,1,1,data/processed/P005/transcript.txt,data/processed/P005/audio.wav,data/processed/P005/video.mp4,0.83,0.76,0.90
+P006,S006,daic_woz,control,1,1,1,data/processed/P006/transcript.txt,data/processed/P006/audio.wav,data/processed/P006/video.mp4,0.97,0.93,0.89
+P007,S007,daic_woz,depressed,0,1,1,,data/processed/P007/audio.wav,data/processed/P007/video.mp4,,0.82,0.77
+P008,S008,daic_woz,control,1,1,1,data/processed/P008/transcript.txt,data/processed/P008/audio.wav,data/processed/P008/video.mp4,0.89,0.85,0.92
+P009,S009,daic_woz,depressed,1,1,1,data/processed/P009/transcript.txt,data/processed/P009/audio.wav,data/processed/P009/video.mp4,0.94,0.88,0.83
+P010,S010,daic_woz,control,1,1,0,data/processed/P010/transcript.txt,data/processed/P010/audio.wav,,0.90,0.81,
+P011,S011,daic_woz,depressed,1,1,1,data/processed/P011/transcript.txt,data/processed/P011/audio.wav,data/processed/P011/video.mp4,0.86,0.78,0.80
+P012,S012,daic_woz,control,1,1,1,data/processed/P012/transcript.txt,data/processed/P012/audio.wav,data/processed/P012/video.mp4,0.93,0.91,0.87

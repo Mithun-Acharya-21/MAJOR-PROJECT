@@ -1,0 +1,3 @@
+record_id,participant_id,session_id,dataset_id,dataset_version,label,purpose,alignment,split
+T001,P020,S020,daic_woz,1.0,depressed,multimodal_depression,participant_session_aligned,test
+T002,P021,S021,daic_woz,1.0,control,multimodal_depression,participant_session_aligned,test
