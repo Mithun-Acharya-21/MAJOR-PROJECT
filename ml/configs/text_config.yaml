@@ -1,0 +1,38 @@
+# Text Pipeline Configuration
+# EmotiSense AI — Depression Detection from Text
+
+model:
+  name: "deberta-v3"
+  hidden_size: 768
+  max_seq_length: 128
+  freeze_encoder: true
+
+bilstm:
+  hidden_size: 128
+  num_layers: 2
+  dropout: 0.2
+  projection_dim: 256
+
+attention:
+  type: "additive"
+  hidden_size: 256
+
+training:
+  epochs: 5
+  batch_size: 8
+  learning_rate: 2e-4
+  weight_decay: 0.01
+  warmup_steps: 100
+  val_split: 0.2
+  seed: 42
+
+data:
+  max_length: 128
+  lowercase: true
+  expand_slang: true
+  convert_emoji: true
+
+checkpoint:
+  dir: "models/checkpoints/text_model"
+  save_best_only: true
+  monitor: "val_f1"

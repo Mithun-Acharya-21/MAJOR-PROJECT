@@ -9,7 +9,7 @@ import {
   FolderTree,
   ShieldAlert,
 } from "lucide-react";
-import { AnalyzerDemo } from "@/components/AnalyzerDemo";
+import { ScreeningWizard } from "@/components/ScreeningWizard";
 import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/")({
@@ -94,9 +94,8 @@ function Index() {
             for early depression detection
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground">
-            A multimodal system that reads what people write and how they look — a DeBERTa-v3 +
-            BiLSTM-Attention text branch and a CNN facial-emotion branch, fused into one score that
-            always explains itself with LIME and SHAP.
+            A step-by-step multimodal screening system that analyzes Text → Photo → Live Face → Voice/Speech,
+            combines all evidence using weighted fusion, and explains every prediction with LIME.
           </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-4">
             {METRICS.map((m) => (
@@ -118,9 +117,9 @@ function Index() {
       <section className="mx-auto max-w-6xl px-6 py-16">
         <div className="mb-6 flex items-center gap-2">
           <Lightbulb className="size-4 text-primary" />
-          <h2 className="text-2xl font-semibold">Live demo</h2>
+          <h2 className="text-2xl font-semibold">Multimodal Screening</h2>
         </div>
-        <AnalyzerDemo />
+        <ScreeningWizard />
       </section>
 
       <section className="border-y border-border bg-surface/40">

@@ -1,0 +1,43 @@
+# EmotiSense AI — Python Dependencies
+# Emotion-Aware & Explainable Deep Learning for Depression Detection
+
+# Core ML
+torch>=2.0.0
+torchvision>=0.15.0
+transformers>=4.30.0
+numpy>=1.24.0
+
+# Image processing
+Pillow>=9.0.0
+
+# Web framework (backend)
+fastapi>=0.100.0
+uvicorn>=0.23.0
+python-multipart>=0.0.6
+
+# Explainability
+lime>=0.2.0
+shap>=0.42.0
+
+# ML baselines (optional)
+scikit-learn>=1.3.0
+
+# Configuration
+PyYAML>=6.0
+
+# Audio processing (optional)
+av>=10.0.0
+
+# Speech-to-text (optional)
+openai-whisper>=20230918
+
+# Jupyter notebooks
+jupyter>=1.0.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Face detection (optional)
+opencv-python>=4.8.0
+
+# Demo app (optional)
+streamlit>=1.25.0

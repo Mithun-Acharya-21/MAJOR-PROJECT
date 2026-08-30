@@ -1,0 +1,41 @@
+# Training Configuration
+# EmotiSense AI — General Training Settings
+
+general:
+  project_name: "emotisense-ai"
+  seed: 42
+  device: "auto"  # auto, cuda, cpu
+  log_level: "INFO"
+
+experiment:
+  name: "baseline_run"
+  description: "Initial baseline training run"
+
+data:
+  text_csv: "data/processed/text/train.csv"
+  image_dir: "data/processed/face/train"
+  multimodal_csv: null
+
+training:
+  epochs: 5
+  batch_size: 8
+  learning_rate: 2e-4
+  weight_decay: 0.01
+  val_split: 0.2
+  early_stopping_patience: 3
+
+evaluation:
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1
+    - auc
+  save_confusion_matrix: true
+  save_roc_curve: true
+  save_explanations: true
+
+output:
+  checkpoint_dir: "models/checkpoints"
+  results_dir: "results"
+  explainability_dir: "results/explainability_outputs"

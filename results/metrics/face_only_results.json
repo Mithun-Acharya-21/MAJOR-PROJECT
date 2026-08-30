@@ -1,0 +1,10 @@
+{
+  "model": "ResNet-18 (Face Only)",
+  "status": "placeholder",
+  "accuracy": 0.79,
+  "precision": 0.77,
+  "recall": 0.81,
+  "f1": 0.79,
+  "auc": 0.82,
+  "note": "Replace with actual training results"
+}

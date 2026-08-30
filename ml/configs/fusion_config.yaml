@@ -1,0 +1,39 @@
+# Fusion Configuration
+# EmotiSense AI — Multimodal Fusion Model
+
+fusion:
+  type: "cross_attention"
+  embed_dim: 256
+  n_heads: 4
+  dropout: 0.3
+
+classifier:
+  input_dim: 512
+  hidden_dim: 256
+  num_classes: 2
+  dropout: 0.3
+
+text_branch:
+  encoder: "deberta-v3"
+  hidden_size: 768
+  lstm_hidden: 128
+  lstm_layers: 2
+  projection_dim: 256
+
+vision_branch:
+  backbone: "resnet18"
+  embed_dim: 256
+  freeze_backbone: true
+
+training:
+  epochs: 5
+  batch_size: 8
+  learning_rate: 2e-4
+  weight_decay: 0.01
+  val_split: 0.2
+  seed: 42
+
+checkpoint:
+  dir: "models/checkpoints/fusion_model"
+  save_best_only: true
+  monitor: "val_f1"

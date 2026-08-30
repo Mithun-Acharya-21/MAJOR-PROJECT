@@ -1,0 +1,35 @@
+# Face Pipeline Configuration
+# EmotiSense AI — Depression Detection from Facial Expressions
+
+model:
+  backbone: "resnet18"
+  pretrained: true
+  embed_dim: 256
+  num_classes: 2
+  freeze_backbone: true
+  dropout: 0.3
+
+preprocessing:
+  target_size: 224
+  normalization: "imagenet"
+  face_detection: "opencv"
+  face_padding: 0.2
+
+augmentation:
+  horizontal_flip_prob: 0.5
+  rotation_degrees: 10
+  color_jitter: true
+  random_affine: true
+
+training:
+  epochs: 5
+  batch_size: 16
+  learning_rate: 1e-3
+  weight_decay: 0.01
+  val_split: 0.2
+  seed: 42
+
+checkpoint:
+  dir: "models/checkpoints/face_model"
+  save_best_only: true
+  monitor: "val_f1"

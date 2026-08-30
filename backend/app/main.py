@@ -625,3 +625,207 @@ async def live_analyze(
     result["risk_status"] = recommendations.get("status", "Unknown")
 
     return result
+
+
+# ===================================================================
+# Step-by-step modality endpoints
+# ===================================================================
+from typing import List as TypingList
+
+
+@app.post("/api/analyze/text")
+async def analyze_text_endpoint(
+    text: str = Form(..., description="Text input for analysis"),
+):
+    """Analyze text input for depression indicators."""
+    if not text or not text.strip():
+        raise HTTPException(status_code=400, detail="Text input is required")
+
+    from backend.app.services.text_service import analyze_text
+    result = analyze_text(text.strip(), _state)
+    result["transcript"] = text
+    # Build text_explanation for recommendations
+    text_explanation = []
+    explanation = result.get("explanation", {})
+    if isinstance(explanation, dict):
+        text_explanation = explanation.get("attention_tokens", [])
+    elif isinstance(explanation, list):
+        text_explanation = explanation
+    recommendations = generate_recommendations({
+        "probabilities": {"depressed": result["probability"], "non_depressed": 100 - result["probability"]},
+        "risk_level": result["risk_level"],
+        "text_explanation": text_explanation,
+    })
+    result["recommendations"] = recommendations
+    return result
+
+
+@app.post("/api/analyze/photo")
+async def analyze_photo_endpoint(
+    file: UploadFile = File(..., description="Facial photo"),
+):
+    """Analyze a facial photo for depression indicators."""
+    image_bytes = await file.read()
+    if not image_bytes or len(image_bytes) < 100:
+        raise HTTPException(status_code=400, detail="Invalid image file")
+
+    from backend.app.services.photo_service import analyze_photo
+    result = analyze_photo(image_bytes, _state)
+    recommendations = generate_recommendations({
+        "probabilities": {"depressed": result["probability"], "non_depressed": 100 - result["probability"]},
+        "risk_level": result["risk_level"],
+    })
+    result["recommendations"] = recommendations
+    return result
+
+
+@app.post("/api/analyze/face")
+async def analyze_face_endpoint(
+    frames: TypingList[UploadFile] = File(..., description="Webcam frames"),
+):
+    """Analyze webcam frames for live facial expression depression risk."""
+    frame_bytes_list = []
+    for frame in frames:
+        try:
+            data = await frame.read()
+            if data and len(data) > 100:
+                frame_bytes_list.append(data)
+        except Exception:
+            continue
+    if not frame_bytes_list:
+        raise HTTPException(status_code=400, detail="No valid frames provided")
+
+    from backend.app.services.face_service import analyze_live_face
+    result = analyze_live_face(frame_bytes_list, _state)
+    recommendations = generate_recommendations({
+        "probabilities": {"depressed": result["probability"], "non_depressed": 100 - result["probability"]},
+        "risk_level": result["risk_level"],
+    })
+    result["recommendations"] = recommendations
+    return result
+
+
+@app.post("/api/analyze/voice")
+async def analyze_voice_endpoint(
+    audio: UploadFile = File(..., description="Audio recording"),
+    session_id: Optional[str] = Form(None),
+):
+    """Analyze voice/speech for depression indicators."""
+    audio_bytes = await audio.read()
+    if not audio_bytes or len(audio_bytes) < 100:
+        raise HTTPException(status_code=400, detail="Invalid or empty audio file")
+
+    from backend.app.services.voice_service import analyze_voice
+    result = analyze_voice(audio_bytes, session_id)
+    recommendations = generate_recommendations({
+        "probabilities": {"depressed": result["probability"], "non_depressed": 100 - result["probability"]},
+        "risk_level": result["risk_level"],
+        "transcript": result.get("transcript", ""),
+        "voice_features": result.get("voice_features"),
+    })
+    result["recommendations"] = recommendations
+    return result
+
+
+@app.post("/api/analyze/multimodal")
+async def analyze_multimodal_endpoint(
+    text: Optional[str] = Form(None),
+    photo: Optional[UploadFile] = File(None),
+    frames: Optional[TypingList[UploadFile]] = File(None),
+    audio: Optional[UploadFile] = File(None),
+    session_id: Optional[str] = Form(None),
+):
+    """Fuse results from all available modalities."""
+    modality_results = {}
+    if text and text.strip():
+        from backend.app.services.text_service import analyze_text
+        modality_results["text"] = analyze_text(text.strip(), _state)
+    if photo is not None:
+        photo_bytes = await photo.read()
+        if photo_bytes and len(photo_bytes) > 100:
+            from backend.app.services.photo_service import analyze_photo
+            modality_results["photo"] = analyze_photo(photo_bytes, _state)
+    if frames:
+        frame_bytes_list = []
+        for frame in frames:
+            try:
+                data = await frame.read()
+                if data and len(data) > 100:
+                    frame_bytes_list.append(data)
+            except Exception:
+                continue
+        if frame_bytes_list:
+            from backend.app.services.face_service import analyze_live_face
+            modality_results["face"] = analyze_live_face(frame_bytes_list, _state)
+    if audio is not None:
+        audio_bytes = await audio.read()
+        if audio_bytes and len(audio_bytes) > 100:
+            from backend.app.services.voice_service import analyze_voice
+            modality_results["voice"] = analyze_voice(audio_bytes, session_id)
+    if not modality_results:
+        raise HTTPException(status_code=400, detail="No valid inputs provided")
+
+    from backend.app.services.fusion_service import fuse_multimodal
+    fused = fuse_multimodal(modality_results)
+    fused["individual_results"] = modality_results
+    # Build text_explanation for recommendations
+    text_explanation = []
+    text_result = modality_results.get("text", {})
+    text_expl = text_result.get("explanation", {})
+    if isinstance(text_expl, dict):
+        text_explanation = text_expl.get("attention_tokens", [])
+    elif isinstance(text_expl, list):
+        text_explanation = text_expl
+    recommendations = generate_recommendations({
+        "probabilities": {"depressed": fused["probability"], "non_depressed": 100 - fused["probability"]},
+        "risk_level": fused["risk_level"],
+        "transcript": modality_results.get("voice", {}).get("transcript", ""),
+        "text_explanation": text_explanation,
+    })
+    fused["recommendations"] = recommendations
+    return fused
+
+
+@app.get("/api/model/metrics")
+async def model_metrics():
+    """Return evaluated model performance metrics for the primary fusion model."""
+    import json
+    from pathlib import Path
+
+    metrics_path = _PROJECT_ROOT / "results" / "metrics" / "fusion_results.json"
+    if metrics_path.exists():
+        try:
+            data = json.loads(metrics_path.read_text(encoding="utf-8"))
+            if data.get("status") != "placeholder":
+                return {
+                    "accuracy": data.get("accuracy", 0),
+                    "precision": data.get("precision", 0),
+                    "recall": data.get("recall", 0),
+                    "f1": data.get("f1", 0),
+                    "roc_auc": data.get("auc", data.get("roc_auc", 0)),
+                    "source": "evaluation",
+                    "note": data.get("note", ""),
+                }
+        except Exception as e:
+            logger.warning("Could not read fusion metrics file: %s", e)
+
+    baselines = get_baseline_metrics()
+    fusion = next((m for m in baselines["models"] if m.get("type") == "multimodal"), baselines["models"][-1])
+    return {
+        "accuracy": fusion["accuracy"],
+        "precision": fusion["precision"],
+        "recall": fusion["recall"],
+        "f1": fusion["f1"],
+        "roc_auc": fusion["auc"],
+        "source": "baselines",
+        "note": baselines.get("notes", ""),
+    }
+
+
+@app.get("/api/recommendations")
+async def general_recommendations():
+    """Return general wellness recommendations (non-personalized)."""
+    return generate_recommendations({
+        "probabilities": {"depressed": 50.0, "non_depressed": 50.0},
+        "risk_level": "low",
+    })

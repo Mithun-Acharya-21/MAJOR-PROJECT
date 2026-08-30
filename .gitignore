@@ -1,14 +1,71 @@
+# === Python ===
 .venv/
 __pycache__/
 *.pyc
-.env
-checkpoints/
-models/
-.whisper_models/
-*.wav
-server_log.txt
-node_modules/
-dist/
-build/
+*.pyo
 *.egg-info/
 .eggs/
+*.egg
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# === Node.js ===
+node_modules/
+.tanstack/
+
+# === Environment ===
+.env
+.env.local
+.env.*.local
+
+# === Build Output ===
+dist/
+build/
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Logs ===
+*.log
+
+# === ML Models & Checkpoints (large binary files) ===
+models/checkpoints/
+models/final/
+.whisper_models/
+*.pt
+*.pth
+*.onnx
+*.bin
+*.npz
+!data/*.npz
+
+# === Audio Temp Files ===
+*.wav
+*.webm
+*.mp3
+
+# === Uploads / Temp ===
+uploads/
+tmp/
+temp/
+
+# === Data (keep structure, ignore large raw datasets) ===
+data/eatd/
+data/fer2013/
+data/raw/face/fer2013/
+data/raw/face/raf_db/
+data/raw/face/ck_plus/
+data/raw/text/rsdd/
+data/raw/text/erisk/
+data/raw/text/twitter_kaggle/
