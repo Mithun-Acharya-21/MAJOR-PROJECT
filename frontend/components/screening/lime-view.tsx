@@ -39,7 +39,8 @@ export function LimeView({ explanation }: { explanation: LimeExplanation }) {
 
       {hasImage ? (
         <p className="text-sm text-muted-foreground text-pretty">
-          Highlighted regions indicate areas that influenced the model prediction.
+          Regions that most influenced the model&apos;s visual classification (model feature
+          attribution — not causal regions and not a depression classification).
         </p>
       ) : null}
 
@@ -48,8 +49,9 @@ export function LimeView({ explanation }: { explanation: LimeExplanation }) {
       <div className="flex gap-2 rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">
         <Info className="mt-0.5 size-3.5 shrink-0" />
         <p className="text-pretty">
-          Positive or negative influence indicates how a feature affected the model prediction. It
-          does not indicate a clinical cause.
+          Text features that influenced the model&apos;s prediction (model feature attribution).
+          Positive or negative influence indicates how a feature affected the model output — it is
+          not a causal explanation and does not indicate a clinical cause.
         </p>
       </div>
     </div>

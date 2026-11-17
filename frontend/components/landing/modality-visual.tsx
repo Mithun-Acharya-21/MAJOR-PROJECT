@@ -14,7 +14,7 @@ export function ModalityVisual() {
   return (
     <div
       className="relative aspect-square w-full max-w-md select-none"
-      aria-label="Diagram: text, photo, face, and voice signals converging into NeuroScreen"
+      aria-label="Diagram: text, photo, face, and voice signals converging into EmotionDep"
       role="img"
     >
       {/* connecting lines */}
@@ -85,7 +85,7 @@ export function ModalityVisual() {
           <LogoMark className="size-11 rounded-2xl" />
         </div>
         <span className="mt-2 text-xs font-medium tracking-wide text-muted-foreground">
-          NeuroScreen
+          EmotionDep
         </span>
       </div>
 

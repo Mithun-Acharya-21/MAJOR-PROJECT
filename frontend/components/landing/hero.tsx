@@ -14,10 +14,8 @@ export function Hero() {
             Research & educational screening
           </span>
           <div className="flex flex-col gap-4">
-            <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-6xl">
-              Multimodal depression
-              <br />
-              risk screening
+            <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl lg:text-5xl">
+              Emotion-Aware and Explainable Deep Learning Model for Early Depression Detection Using Attention-Based Transformer Networks
             </h1>
             <p className="max-w-xl text-base leading-relaxed text-muted-foreground text-pretty sm:text-lg">
               An AI-powered research tool that analyzes text, facial expressions, photos, and
@@ -26,15 +24,24 @@ export function Hero() {
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button size="lg" className="rounded-xl" asChild>
-              <Link href="/screening">
-                Start screening
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" className="rounded-xl" asChild>
-              <Link href="/#how-it-works">How it works</Link>
-            </Button>
+            <Button
+              size="lg"
+              className="rounded-xl"
+              nativeButton={false}
+              render={
+                <Link href="/screening">
+                  Start screening
+                  <ArrowRight className="size-4" />
+                </Link>
+              }
+            />
+            <Button
+              size="lg"
+              variant="outline"
+              className="rounded-xl"
+              nativeButton={false}
+              render={<Link href="/#how-it-works">How it works</Link>}
+            />
           </div>
           <p className="text-sm text-muted-foreground">
             No account required · Takes about 2–4 minutes

@@ -45,7 +45,6 @@ from backend.app.explainability.explainer import (
     get_risk_color,
 )
 from backend.app.proxy_scorer import blend_probabilities, score_text
-from backend.app.training import DEFAULT_CHECKPOINT_DIR, apply_checkpoint
 from backend.app.training_state import get_training_status, start_training
 from backend.app.live_stt import transcribe_audio
 from backend.app.voice_analysis import extract_voice_features, score_voice
@@ -56,73 +55,59 @@ from backend.app.recommendations import generate_recommendations, check_safety_k
 # Logging
 # ---------------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("neuroscreen")
+logger = logging.getLogger("emotiondep")
 
 # ---------------------------------------------------------------------------
 # Global model state
 # ---------------------------------------------------------------------------
 
 class ModelState:
-    """Holds lazily-initialized model instances."""
+    """Verification status of servable model checkpoints (Phase 0).
+
+    This class no longer instantiates randomly initialized neural branches.
+    It reports which artifacts passed ``backend.app.model_registry``
+    verification. Trained text weights are loaded lazily by
+    ``TrainedTextClassifier``. No vision/fusion checkpoint is servable until
+    one is trained on a participant-level split and declares that policy in
+    its metadata.
+    """
 
     def __init__(self):
+        # Kept for backward compatibility with callers that pass model_state.
         self.text_branch = None
         self.vision_branch = None
         self.fusion_model = None
         self.tokenizer = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.loaded = False
+        self.verification: dict = {}
+        self.load_error: Optional[str] = None
 
     def load(self):
-        """Initialize all model components."""
-        if self.loaded:
+        """Verify checkpoints; never fabricate a model probability."""
+        if self.verification:
             return
 
-        logger.info("Loading models onto device: %s", self.device)
+        from backend.app.model_registry import audit_checkpoints
 
-        try:
-            from backend.app.models.text_branch import TextBranch, get_tokenizer
-            from backend.app.models.vision_branch import VisionBranch
-            from backend.app.models.fusion_layer import MultimodalFusionModel
-
-            # Text branch
-            logger.info("  → Initializing TextBranch (DistilBERT + BiLSTM + Attention)...")
-            self.text_branch = TextBranch().to(self.device)
-            self.text_branch.eval()
-            self.tokenizer = get_tokenizer()
-
-            # Vision branch
-            logger.info("  → Initializing VisionBranch (ResNet-18)...")
-            self.vision_branch = VisionBranch().to(self.device)
-            self.vision_branch.eval()
-
-            # Fusion model
-            logger.info("  → Initializing MultimodalFusionModel (Cross-Attention)...")
-            self.fusion_model = MultimodalFusionModel().to(self.device)
-            self.fusion_model.eval()
-
-            # Load a previously trained checkpoint if one exists
-            checkpoint_dir = os.getenv(
-                "NEUROSCREEN_CHECKPOINT_DIR", str(_PROJECT_ROOT / DEFAULT_CHECKPOINT_DIR)
+        logger.info("Verifying model checkpoints on device: %s", self.device)
+        self.verification = audit_checkpoints()
+        self.loaded = any(
+            status["available"] for status in self.verification.values()
+        )
+        if not self.loaded:
+            self.load_error = "No verified model checkpoint is available"
+            logger.warning(
+                "No verified model checkpoint — inference will use explicitly "
+                "labeled heuristic signals only."
             )
-            loaded = apply_checkpoint(
-                {
-                    "text_branch": self.text_branch,
-                    "vision_branch": self.vision_branch,
-                    "fusion_model": self.fusion_model,
-                },
-                checkpoint_dir,
-            )
-            if loaded:
-                logger.info("✓ Loaded trained checkpoint weights: %s", ", ".join(loaded))
-
-            self.loaded = True
-            logger.info("✓ All models loaded successfully.")
-
-        except Exception as e:
-            logger.error("Failed to load models: %s", e)
-            logger.error(traceback.format_exc())
-            raise
+        else:
+            servable = [
+                branch
+                for branch, status in self.verification.items()
+                if status["available"]
+            ]
+            logger.info("Verified servable branches: %s", ", ".join(servable))
 
 
 # Singleton
@@ -134,13 +119,13 @@ _state = ModelState()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load models at startup."""
+    """Verify model checkpoints at startup."""
     try:
         _state.load()
     except Exception as e:
         logger.warning("Models not loaded at startup — will retry on first request: %s", e)
     yield
-    logger.info("Shutting down NeuroScreen server.")
+    logger.info("Shutting down EmotionDep server.")
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +133,7 @@ async def lifespan(app: FastAPI):
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="NeuroScreen — Multimodal Depression Detection",
+    title="EmotionDep — Emotion-Aware Depression Detection",
     description="AI-powered screening tool combining text analysis and facial expression recognition.",
     version="1.0.0",
     lifespan=lifespan,
@@ -168,24 +153,44 @@ _FRONTEND_DIR = _PROJECT_ROOT / "frontend"
 if _FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(_FRONTEND_DIR)), name="static")
 
+# Adaptive screening routes (new — existing endpoints are untouched)
+from backend.app.screening_routes import router as screening_router
+
+screening_router.model_state = _state  # shared ModelState for modality services
+app.include_router(screening_router)
+
 
 # ===================================================================
 # Routes
 # ===================================================================
 
-@app.get("/", response_class=FileResponse)
+@app.get("/")
 async def serve_frontend():
-    """Serve the NeuroScreen dashboard HTML with no-cache headers."""
+    """Serve a static build if present; otherwise describe the API.
+
+    The real UI is the Next.js app in ``frontend/`` served on its own port.
+    Previously this route raised 404 because ``frontend/index.html`` does not
+    exist in this repository.
+    """
     index_path = _FRONTEND_DIR / "index.html"
-    if not index_path.exists():
-        raise HTTPException(status_code=404, detail="Frontend not found")
-    return FileResponse(
-        str(index_path),
-        headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
+    if index_path.exists():
+        return FileResponse(
+            str(index_path),
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
+    return JSONResponse(
+        {
+            "service": "EmotionDep — multimodal depression screening research API",
+            "status": "ok",
+            "api_docs": "/docs",
+            "health": "/api/health",
+            "frontend": "Run the Next.js app in frontend/ (npm run dev)",
+            "note": "Research/educational screening only — not a medical diagnosis.",
+        }
     )
 
 
@@ -196,6 +201,7 @@ async def health_check():
         "status": "healthy",
         "models_loaded": _state.loaded,
         "device": str(_state.device),
+        "verified_checkpoints": _state.verification,
     }
 
 
@@ -235,43 +241,35 @@ async def train(payload: Optional[dict] = Body(default=None)):
 
 
 def _reload_from_training(result: dict) -> None:
-    """Swap inference models for the freshly trained checkpoint."""
-    try:
-        from backend.app.training import load_models_from_checkpoint
+    """Refuse to serve an unverified training artifact (Phase 0).
 
-        checkpoint_dir = result.get("checkpoint_dir")
-        if not checkpoint_dir:
-            return
-        models = load_models_from_checkpoint(checkpoint_dir, _state.device)
-        if models.get("text_branch") is not None:
-            _state.text_branch = models["text_branch"]
-        if models.get("vision_branch") is not None:
-            _state.vision_branch = models["vision_branch"]
-        _state.fusion_model = models["fusion_model"]
-        _state.loaded = True
-        logger.info("✓ Inference models reloaded from trained checkpoint: %s", checkpoint_dir)
-    except Exception as e:
-        logger.warning("Could not reload inference models from checkpoint: %s", e)
+    The API trainer in ``backend.app.training`` uses row-level splits, so its
+    checkpoint cannot demonstrate participant-independent performance. It is
+    kept on disk for inspection but is never swapped into inference. Only
+    artifacts approved by ``backend.app.model_registry`` may serve.
+    """
+    checkpoint_dir = (result or {}).get("checkpoint_dir")
+    logger.info(
+        "Training finished (%s). Checkpoint NOT loaded into serving: it lacks "
+        "participant-level verification (see backend/app/model_registry.py).",
+        checkpoint_dir,
+    )
 
 
 async def _run_analysis(
     text: Optional[str],
     image_bytes: Optional[bytes],
 ) -> dict:
-    """Shared analysis logic used by both /api/analyze and /live-analyze.
+    """Shared analysis logic used by /api/analyze and /live-analyze.
 
-    Runs the full AI pipeline: TextBranch → VisionBranch → Fusion → Classification
-    → Explainability. This is the single source of truth for all analysis.
-
-    Args:
-        text: Raw text input (may be empty/None for image-only).
-        image_bytes: Raw image file bytes (may be None for text-only).
-
-    Returns:
-        JSON-serializable dict with prediction, confidence, explanations, etc.
+    Phase 0: no randomly initialized network may contribute. Text goes through
+    the trained-model-or-lexicon service (with explicit provenance labels) and
+    images through the auxiliary expression service. The two signals are
+    combined with the documented weighted fusion, never a random fusion head.
     """
-    from backend.app.models.text_branch import preprocess_text
-    from backend.app.models.vision_branch import preprocess_image, generate_gradcam
+    from backend.app.services.fusion_service import DEFAULT_WEIGHTS, fuse_multimodal
+    from backend.app.services.photo_service import analyze_photo
+    from backend.app.services.text_service import analyze_text
 
     has_text = text is not None and text.strip() != ""
     has_image = image_bytes is not None and len(image_bytes) > 0
@@ -282,134 +280,97 @@ async def _run_analysis(
             detail="Please provide at least one input: text, image, or both.",
         )
 
-    # Ensure models are loaded
-    if not _state.loaded:
-        try:
-            _state.load()
-        except Exception as e:
-            raise HTTPException(
-                status_code=503,
-                detail=f"Models failed to initialize: {str(e)}",
-            )
+    # Populates checkpoint verification status; never raises on missing models.
+    _state.load()
 
+    modality_results: dict = {}
     modalities_used = []
-    text_features = None
-    vision_features = None
-    text_explanation = None
-    image_explanation = None
 
     try:
-        # --- Text Processing ---
+        text_result = None
+        photo_result = None
+
         if has_text:
+            text_result = analyze_text(text, _state)
+            modality_results["text"] = text_result
             modalities_used.append("text")
-            cleaned = preprocess_text(text)
 
-            # Tokenize
-            encoding = _state.tokenizer(
-                cleaned,
-                return_tensors="pt",
-                max_length=128,
-                padding="max_length",
-                truncation=True,
-            )
-            input_ids = encoding["input_ids"].to(_state.device)
-            attention_mask = encoding["attention_mask"].to(_state.device)
-
-            # Get tokens for explainability
-            tokens_list = _state.tokenizer.convert_ids_to_tokens(
-                input_ids.squeeze().tolist()
-            )
-
-            # Forward pass
-            with torch.no_grad():
-                text_features, attn_weights = _state.text_branch(input_ids, attention_mask)
-
-            attention_weights_list = attn_weights.squeeze().cpu().tolist()
-
-            # Generate text explanation
-            text_explanation = generate_text_explanation(
-                text=cleaned,
-                attention_weights=attention_weights_list,
-                tokens=tokens_list,
-            )
-
-            # Enrich saliency with lexicon hints when attention is flat
-            _, word_hints = score_text(cleaned)
-            if word_hints and text_explanation:
-                for item in text_explanation:
-                    hint = word_hints.get(item["token"].lower(), 0.0)
-                    if hint > 0:
-                        boosted = min(1.0, item["weight"] + hint * 0.35)
-                        item["weight"] = round(boosted, 4)
-                        item["color"] = get_risk_color(boosted)
-
-        # --- Image Processing ---
         if has_image:
+            photo_result = analyze_photo(image_bytes, _state)
+            modality_results["photo"] = photo_result
             modalities_used.append("image")
 
-            # Preprocess
-            image_tensor = preprocess_image(image_bytes).to(_state.device)
-
-            # Forward pass
-            with torch.no_grad():
-                vision_features = _state.vision_branch(image_tensor)
-
-            # Generate Grad-CAM heatmap
-            gradcam_heatmap = generate_gradcam(
-                _state.vision_branch, image_tensor
-            )
-
-            # Generate image explanation (base64 data URLs)
-            image_explanation = generate_image_explanation(
-                original_image_bytes=image_bytes,
-                gradcam_heatmap=gradcam_heatmap,
-            )
-
-        # --- Fusion & Classification ---
-        with torch.no_grad():
-            logits, probabilities = _state.fusion_model(
-                text_features=text_features,
-                vision_features=vision_features,
-            )
-
-        model_probs = probabilities.squeeze().cpu().tolist()
-
-        # Blend with proxy heuristics for meaningful demo outputs
-        cleaned_text = preprocess_text(text) if has_text else None
-
-        probs, _ = blend_probabilities(
-            model_probs=model_probs,
-            text=cleaned_text,
-            image_bytes=image_bytes if has_image else None,
-            modalities=modalities_used,
-        )
-
-        predicted_class = 1 if probs[1] >= probs[0] else 0
-
-        # Class mapping: 0 = Non-Depressed, 1 = Depressed
+        fused = fuse_multimodal(modality_results, DEFAULT_WEIGHTS)
+        depressed_prob = fused["probabilities"]["depressed"] / 100.0
+        predicted_class = 1 if depressed_prob >= 0.5 else 0
         prediction = "Depressed" if predicted_class == 1 else "Non-Depressed"
-        confidence = round(probs[predicted_class] * 100, 1)
 
-        # Determine risk level
-        depressed_prob = probs[1]
         if depressed_prob >= 0.7:
             risk_level = "high"
-        elif depressed_prob >= 0.4:
+        elif depressed_prob >= 0.5:
             risk_level = "moderate"
         else:
             risk_level = "low"
 
+        text_explanation = None
+        if text_result is not None:
+            explanation = text_result.get("explanation") or {}
+            features = explanation.get("top_features") or []
+            if not features:
+                features = [
+                    {"feature": token.get("token"), "weight": token.get("weight")}
+                    for token in explanation.get("attention_tokens", [])
+                ]
+            text_explanation = [
+                {
+                    "token": item.get("feature") or item.get("token"),
+                    "weight": round(float(item.get("weight", 0.0)), 4),
+                    "color": get_risk_color(
+                        min(1.0, max(0.0, float(item.get("weight", 0.0))))
+                    ),
+                }
+                for item in features
+                if (item.get("feature") or item.get("token"))
+            ]
+
+        image_explanation = None
+        if photo_result is not None:
+            image_explanation = {
+                "gradcam": None,
+                "method": (photo_result.get("explanation") or {}).get("method"),
+                "face_detected": (photo_result.get("features") or {}).get("face_detected"),
+                "signal_type": photo_result.get("signal_type"),
+                "note": (
+                    "No Grad-CAM is produced: this project has no trained image "
+                    "classifier for a depression target. The visual signal is an "
+                    "auxiliary facial-expression score, not a depression prediction."
+                ),
+            }
+
         return {
             "prediction": prediction,
-            "confidence": confidence,
+            "confidence": fused.get("confidence", 50.0),
             "probabilities": {
-                "depressed": round(probs[1] * 100, 1),
-                "non_depressed": round(probs[0] * 100, 1),
+                "depressed": fused["probabilities"]["depressed"],
+                "non_depressed": fused["probabilities"]["non_depressed"],
             },
             "modalities_used": modalities_used,
             "text_explanation": text_explanation,
+            "text_explanation_note": (
+                "Token attributions come from the actual prediction function "
+                "(trained-model attention/LIME when available, otherwise the "
+                "lexicon proxy). They describe model behaviour, not causation."
+            ),
             "image_explanation": image_explanation,
             "risk_level": risk_level,
+            "fusion_type": fused.get("fusion_type"),
+            "fusion_weights": fused.get("fusion_weights"),
+            "signal_types": fused.get("signal_types"),
+            "validated_modalities": fused.get("validated_modalities"),
+            "model_version": (
+                text_result.get("model_version") if text_result is not None else None
+            ),
+            "method": text_result.get("method") if text_result is not None else None,
         }
 
     except HTTPException:
@@ -613,7 +574,7 @@ async def live_analyze(
         result["confidence"] = round(max(blended_depressed, 1.0 - blended_depressed) * 100, 1)
         if blended_depressed >= 0.7:
             result["risk_level"] = "high"
-        elif blended_depressed >= 0.4:
+        elif blended_depressed >= 0.5:
             result["risk_level"] = "moderate"
         else:
             result["risk_level"] = "low"
@@ -788,37 +749,54 @@ async def analyze_multimodal_endpoint(
 
 @app.get("/api/model/metrics")
 async def model_metrics():
-    """Return evaluated model performance metrics for the primary fusion model."""
+    """Return this project's REAL evaluated metrics (Phase 21).
+
+    Serves results/metrics/text_metrics.json — produced only by an actual
+    evaluation run (scripts/evaluate_text_model.py). There is no multimodal
+    result because no aligned multimodal dataset exists (Phase 11). When
+    the file is absent, the endpoint honestly reports that instead of
+    serving literature values as project results.
+    """
     import json
     from pathlib import Path
 
-    metrics_path = _PROJECT_ROOT / "results" / "metrics" / "fusion_results.json"
-    if metrics_path.exists():
+    text_metrics_path = _PROJECT_ROOT / "results" / "metrics" / "text_metrics.json"
+    if text_metrics_path.exists():
         try:
-            data = json.loads(metrics_path.read_text(encoding="utf-8"))
-            if data.get("status") != "placeholder":
+            data = json.loads(text_metrics_path.read_text(encoding="utf-8"))
+            if data.get("samples"):
                 return {
-                    "accuracy": data.get("accuracy", 0),
-                    "precision": data.get("precision", 0),
-                    "recall": data.get("recall", 0),
-                    "f1": data.get("f1", 0),
-                    "roc_auc": data.get("auc", data.get("roc_auc", 0)),
+                    "model": data.get("model"),
+                    "model_version": data.get("model_version"),
+                    "dataset": data.get("dataset"),
+                    "split": data.get("split"),
+                    "samples": data.get("samples"),
+                    "accuracy": data.get("accuracy"),
+                    "precision": data.get("precision"),
+                    "recall": data.get("recall"),
+                    "f1": data.get("f1"),
+                    "roc_auc": data.get("roc_auc"),
+                    "pr_auc": data.get("pr_auc"),
+                    "balanced_accuracy": data.get("balanced_accuracy"),
                     "source": "evaluation",
-                    "note": data.get("note", ""),
+                    "evaluated_at": data.get("evaluated_at"),
+                    "note": (
+                        "Real evaluation of the trained text model on the "
+                        "locked EATD test split. No multimodal metrics exist "
+                        "— no aligned multimodal dataset is available."
+                    ),
                 }
         except Exception as e:
-            logger.warning("Could not read fusion metrics file: %s", e)
+            logger.warning("Could not read text metrics file: %s", e)
 
-    baselines = get_baseline_metrics()
-    fusion = next((m for m in baselines["models"] if m.get("type") == "multimodal"), baselines["models"][-1])
     return {
-        "accuracy": fusion["accuracy"],
-        "precision": fusion["precision"],
-        "recall": fusion["recall"],
-        "f1": fusion["f1"],
-        "roc_auc": fusion["auc"],
-        "source": "baselines",
-        "note": baselines.get("notes", ""),
+        "source": "none",
+        "metrics": None,
+        "note": (
+            "No evaluated project metrics available yet. Literature baselines "
+            "(labeled as literature) are available via /api/baselines — they "
+            "are NOT this project's results."
+        ),
     }
 
 

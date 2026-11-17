@@ -1,0 +1,50 @@
+# Phase 2 — Experiment T1: TF-IDF + Logistic Regression (EATD text)
+#
+# Runner:  .venv/Scripts/python scripts/phase2/run_text_tfidf.py
+# Module:  ml/phase2/text_tfidf.py
+# Artifact: models/experiments/eatd_text_tfidf_v1/
+# Result:   results/phase2/text/eatd_text_tfidf_v1.json
+
+experiment_id: eatd_text_tfidf_v1
+model_version: text-eatd-tfidf-2.0.0
+modality: text
+
+data:
+  manifest: data/processed/eatd/manifest.csv
+  splits: data/processed/eatd/splits.csv
+  participant_key: (source_partition, subject_id)
+  label_definition: label = 1 if sds_raw * 1.25 >= 50 else 0
+  split_policy: participant_level
+
+features:
+  kind: word_char            # selected by validation AUC
+  word:
+    tokenizer: one token per CJK character / Latin word / number
+    ngram_range: [1, 2]
+    sublinear_tf: true
+    lowercase: false
+  char:
+    analyzer: char_wb
+    ngram_range: [2, 4]
+    min_df: 2
+    lowercase: false
+  fit_on: train only (refit on train+validation for the final model)
+
+grid:
+  C: [0.1, 0.3, 1.0, 3.0]
+  class_weight: [null, balanced]
+  selection_metric: validation participant-level ROC-AUC (tie-break participant F1)
+
+classifier:
+  type: LogisticRegression
+  solver: liblinear
+  max_iter: 5000
+  random_state: 0
+
+evaluation:
+  aggregation: mean of session probabilities per participant
+  threshold: 0.5
+  bootstrap: participant-cluster percentile, n_boot 2000, seed 42
+  test_use: once, after selection
+
+seed: 42

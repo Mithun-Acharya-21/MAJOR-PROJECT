@@ -1,0 +1,47 @@
+# Phase 2 — Experiment V2: frozen Wav2Vec2 embeddings + head (EATD audio)
+#
+# Runner:   .venv/Scripts/python scripts/phase2/run_voice_wav2vec2.py
+# Module:   ml/phase2/voice_wav2vec2.py
+# Artifact: models/experiments/eatd_voice_wav2vec2_v1/
+# Result:   results/phase2/voice/eatd_voice_wav2vec2_v1.json
+#
+# Encoder decision: EATD audio is Mandarin, so the Mandarin-pretrained
+# checkpoint is primary. facebook/wav2vec2-base-960h (English ASR) is kept as
+# a comparison option via --encoder english.
+
+experiment_id: eatd_voice_wav2vec2_v1
+model_version: voice-eatd-wav2vec2-2.0.0
+modality: voice
+
+encoder:
+  name_primary: TencentGameMate/chinese-wav2vec2-base
+  name_alternative: facebook/wav2vec2-base-960h
+  frozen: true
+  sample_rate: 16000
+  pooling: mean+std over frames per chunk, then mean over chunks
+  chunk_sec: 8.0
+  max_chunks: 12          # ≈ 96 s of audio per session
+  embed_batch_size: 4
+  amp: true
+  cache_embeddings: true
+
+head:
+  architecture: Dropout(0.3) → Linear(1536,128) → ReLU → Dropout(0.3) → Linear(128,1)
+  optimizer: AdamW
+  lr: 1.0e-4
+  weight_decay: 0.01
+  batch_size: 32
+  max_epochs: 200
+  early_stopping_patience: 30
+  selection_metric: validation participant-level ROC-AUC
+
+gpu_budget:
+  gpu: NVIDIA RTX 3050 6 GB Laptop
+  expected_peak_gb: 0.9
+  empty_cache_after_encoding: true
+
+evaluation:
+  aggregation: mean of session probabilities per participant
+  bootstrap: participant-cluster percentile, n_boot 2000, seed 42
+
+seed: 42

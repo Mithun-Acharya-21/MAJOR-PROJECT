@@ -7,21 +7,20 @@ import { STEPS } from '@/lib/constants'
 interface StepperProps {
   /** 1-based active step id. */
   active: number
-  /** Set of completed step ids. */
+  /** Set of completed step ids — an indicator only, never a navigation lock. */
   completed: number[]
-  /** Called when a reachable step is clicked. */
+  /** Called when a step is clicked. Every step is always selectable. */
   onSelect: (id: number) => void
-  /** A step is reachable if it is completed or immediately follows the last completed. */
-  isReachable: (id: number) => boolean
 }
 
-export function ScreeningStepper({ active, completed, onSelect, isReachable }: StepperProps) {
+export function ScreeningStepper({ active, completed, onSelect }: StepperProps) {
   const activeStep = STEPS.find((s) => s.id === active) ?? STEPS[0]
   const progress = ((active - 1) / (STEPS.length - 1)) * 100
 
   return (
     <div>
-      {/* Mobile compact progress */}
+      {/* Mobile compact progress — same free navigation as desktop: every
+          step is always selectable, completion only affects indicators. */}
       <div className="flex flex-col gap-2 md:hidden">
         <div className="flex items-baseline justify-between">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -29,6 +28,35 @@ export function ScreeningStepper({ active, completed, onSelect, isReachable }: S
           </span>
           <span className="text-sm font-medium">{activeStep.label}</span>
         </div>
+        <ol aria-label="Assessment steps" className="flex gap-1.5 overflow-x-auto pb-1">
+          {STEPS.map((step) => {
+            const isDone = completed.includes(step.id)
+            const isActive = step.id === active
+            const Icon = step.icon
+            return (
+              <li key={step.id} className="shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onSelect(step.id)}
+                  aria-current={isActive ? 'step' : undefined}
+                  className={cn(
+                    'flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50',
+                    isActive && 'border-primary bg-primary font-medium text-primary-foreground',
+                    isDone && !isActive && 'border-primary/30 bg-primary/10 text-primary',
+                    !isActive && !isDone && 'border-border bg-card text-muted-foreground',
+                  )}
+                >
+                  {isDone && !isActive ? (
+                    <Check className="size-3.5" />
+                  ) : (
+                    <Icon className="size-3.5" />
+                  )}
+                  {step.short}
+                </button>
+              </li>
+            )
+          })}
+        </ol>
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
@@ -38,23 +66,18 @@ export function ScreeningStepper({ active, completed, onSelect, isReachable }: S
       </div>
 
       {/* Desktop horizontal stepper */}
-      <ol className="hidden items-center md:flex">
+      <ol aria-label="Assessment steps" className="hidden items-center md:flex">
         {STEPS.map((step, i) => {
           const isDone = completed.includes(step.id)
           const isActive = step.id === active
-          const reachable = isReachable(step.id)
           const Icon = step.icon
           return (
             <li key={step.id} className="flex flex-1 items-center last:flex-none">
               <button
                 type="button"
-                disabled={!reachable}
-                onClick={() => reachable && onSelect(step.id)}
+                onClick={() => onSelect(step.id)}
                 aria-current={isActive ? 'step' : undefined}
-                className={cn(
-                  'group flex items-center gap-3 rounded-xl px-2 py-1.5 text-left outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50',
-                  reachable ? 'cursor-pointer' : 'cursor-not-allowed',
-                )}
+                className="group flex cursor-pointer items-center gap-3 rounded-xl px-2 py-1.5 text-left outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <span
                   className={cn(

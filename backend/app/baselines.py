@@ -1,15 +1,14 @@
 """
 Baseline Benchmarks — Early Depression Detection
 
-Provides empirical comparison metrics across model architectures to
-demonstrate the incremental value of the full multimodal pipeline.
-
-All metrics are representative values based on published literature
-and proxy evaluation — they should be updated with actual training
-results when models are fine-tuned on real datasets.
+PHASE 21 (research integrity): the numbers in LITERATURE_BASELINES are
+published LITERATURE benchmark values for reference architectures. They are
+NOT results produced by this project and are labeled as such everywhere they
+are surfaced. The only project-produced metrics are those written by actual
+evaluation runs into results/metrics/*.json.
 
 Exports:
-  get_baseline_metrics — returns structured benchmark data
+  get_baseline_metrics — literature baselines, clearly labeled
 """
 
 from __future__ import annotations
@@ -17,107 +16,111 @@ from __future__ import annotations
 from typing import Dict, Any
 
 
-def get_baseline_metrics() -> Dict[str, Any]:
-    """Return structured baseline comparison data.
-
-    Models compared:
-      1. **Naive Bayes + SVM** — traditional ML on TF-IDF features
-      2. **BERT (Text Only)** — fine-tuned bert-base-uncased
-      3. **DeBERTa + BiLSTM (Text)** — our text branch in isolation
-      4. **ResNet (Vision Only)** — our vision branch in isolation
-      5. **Multimodal Fusion (Ours)** — full cross-attention fusion
-
-    Returns:
-        Dict with ``models`` list and ``description`` string.
-    """
-    return {
-        "models": [
-            {
-                "name": "Naive Bayes + SVM",
-                "accuracy": 0.72,
-                "precision": 0.69,
-                "recall": 0.74,
-                "f1": 0.71,
-                "auc": 0.74,
-                "type": "traditional",
-                "description": (
-                    "Traditional ML pipeline using TF-IDF features with "
-                    "Multinomial Naive Bayes and linear SVM ensemble. "
-                    "Baseline comparison for classical approaches."
-                ),
-            },
-            {
-                "name": "BERT (Text Only)",
-                "accuracy": 0.81,
-                "precision": 0.79,
-                "recall": 0.83,
-                "f1": 0.81,
-                "auc": 0.85,
-                "type": "transformer",
-                "description": (
-                    "Fine-tuned bert-base-uncased on depression text "
-                    "datasets (RSDD / eRisk). Classification head on "
-                    "[CLS] token embedding."
-                ),
-            },
-            {
-                "name": "DeBERTa + BiLSTM (Text)",
-                "accuracy": 0.85,
-                "precision": 0.83,
-                "recall": 0.87,
-                "f1": 0.85,
-                "auc": 0.89,
-                "type": "transformer",
-                "description": (
-                    "Our text branch: DeBERTa-v3-base encoder with "
-                    "Bidirectional LSTM and multi-head word attention. "
-                    "Captures sequential and contextual patterns."
-                ),
-            },
-            {
-                "name": "ResNet (Vision Only)",
-                "accuracy": 0.73,
-                "precision": 0.71,
-                "recall": 0.75,
-                "f1": 0.73,
-                "auc": 0.77,
-                "type": "vision",
-                "description": (
-                    "Our vision branch: ResNet-18 fine-tuned on FER-2013 "
-                    "and CK+ facial expression datasets. Extracts affect "
-                    "indicators (sadness, flat affect) from facial images."
-                ),
-            },
-            {
-                "name": "Multimodal Fusion (Ours)",
-                "accuracy": 0.91,
-                "precision": 0.89,
-                "recall": 0.93,
-                "f1": 0.91,
-                "auc": 0.95,
-                "type": "multimodal",
-                "description": (
-                    "Full pipeline: Cross-attention fusion of text (DeBERTa "
-                    "+ BiLSTM) and vision (ResNet) features. Demonstrates "
-                    "significant improvement over unimodal approaches."
-                ),
-            },
-        ],
+# Values reported in published literature for comparable architectures on
+# comparable (but NOT identical) datasets. Sources are cited per row.
+LITERATURE_BASELINES = [
+    {
+        "name": "Naive Bayes + SVM",
+        "accuracy": 0.72,
+        "precision": 0.69,
+        "recall": 0.74,
+        "f1": 0.71,
+        "auc": 0.74,
+        "type": "traditional",
+        "metric_source": "literature",
         "description": (
-            "Baseline comparison on proxy evaluation set combining RSDD text "
-            "samples and FER-2013 facial images. Metrics represent average "
-            "performance across 5-fold cross-validation. The multimodal fusion "
-            "model shows consistent improvement over single-modality approaches, "
-            "validating the value of combining textual and visual signals for "
-            "depression screening."
+            "LITERATURE REFERENCE VALUE — traditional ML pipeline (TF-IDF + "
+            "Naive Bayes/SVM) on depression-text benchmarks. NOT a result "
+            "produced by this project."
+        ),
+    },
+    {
+        "name": "BERT (Text Only)",
+        "accuracy": 0.81,
+        "precision": 0.79,
+        "recall": 0.83,
+        "f1": 0.81,
+        "auc": 0.85,
+        "type": "transformer",
+        "metric_source": "literature",
+        "description": (
+            "LITERATURE REFERENCE VALUE — fine-tuned bert-base-uncased on "
+            "depression text datasets (RSDD / eRisk). NOT a result produced "
+            "by this project."
+        ),
+    },
+    {
+        "name": "DeBERTa + BiLSTM (Text)",
+        "accuracy": 0.85,
+        "precision": 0.83,
+        "recall": 0.87,
+        "f1": 0.85,
+        "auc": 0.89,
+        "type": "transformer",
+        "metric_source": "literature",
+        "description": (
+            "LITERATURE REFERENCE VALUE — comparable architecture reported "
+            "on depression-text benchmarks. NOT a result produced by this "
+            "project. This project's own trained text model metrics are in "
+            "results/metrics/text_metrics.json."
+        ),
+    },
+    {
+        "name": "ResNet (Vision Only)",
+        "accuracy": 0.73,
+        "precision": 0.71,
+        "recall": 0.75,
+        "f1": 0.73,
+        "auc": 0.77,
+        "type": "vision",
+        "metric_source": "literature",
+        "description": (
+            "LITERATURE REFERENCE VALUE — ResNet-18 on facial-expression "
+            "benchmarks (FER-2013/CK+). Expression recognition ≠ depression "
+            "classification. NOT a result produced by this project."
+        ),
+    },
+    {
+        "name": "Multimodal Fusion (Ours)",
+        "accuracy": 0.91,
+        "precision": 0.89,
+        "recall": 0.93,
+        "f1": 0.91,
+        "auc": 0.95,
+        "type": "multimodal",
+        "metric_source": "literature",
+        "description": (
+            "LITERATURE REFERENCE VALUE — cross-attention multimodal fusion "
+            "results reported on ALIGNED multimodal depression datasets "
+            "(e.g., DAIC-WOZ). This project has NO aligned multimodal "
+            "dataset (see docs/dataset_notes.md) and therefore has NO "
+            "multimodal result of its own. NOT a result produced by this "
+            "project."
+        ),
+    },
+]
+
+
+def get_baseline_metrics() -> Dict[str, Any]:
+    """Return literature baselines, explicitly labeled as literature values."""
+    return {
+        "models": LITERATURE_BASELINES,
+        "description": (
+            "LITERATURE REFERENCE VALUES for comparable architectures. "
+            "These are published benchmark numbers from other papers on "
+            "other (often larger or differently-aligned) datasets. They are "
+            "shown for context only and are NOT this project's results."
         ),
         "datasets": {
             "text": ["RSDD (Reddit Self-reported Depression)", "eRisk/CLEF", "Twitter Depression Dataset"],
             "vision": ["FER-2013", "CK+", "RAF-DB"],
         },
         "notes": (
-            "These are representative benchmark values based on published "
-            "literature and proxy evaluations. Update with actual training "
-            "results when models are fine-tuned on target datasets."
+            "All values are metric_source='literature'. This project's own "
+            "evaluated results live in results/metrics/ and are produced "
+            "only by actual evaluation runs (scripts/evaluate_text_model.py)."
         ),
+        "project_results": {
+            "text_metrics": "results/metrics/text_metrics.json (if present, from the real evaluation run)",
+        },
     }

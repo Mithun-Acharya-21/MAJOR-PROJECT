@@ -14,7 +14,7 @@ export function Disclaimer({ className, compact = false }: { className?: string;
       <div className="flex flex-col gap-1 text-sm text-muted-foreground">
         <p className="text-pretty">
           <span className="font-medium text-foreground/90">
-            NeuroScreen is a research and educational screening tool and does not provide a
+            EmotionDep is a research and educational screening tool and does not provide a
             medical diagnosis.
           </span>
         </p>

@@ -42,7 +42,7 @@ export function FeatureCards() {
           Four signals, one screening
         </h2>
         <p className="max-w-2xl text-muted-foreground text-pretty">
-          Each modality contributes a different perspective. NeuroScreen analyzes them
+          Each modality contributes a different perspective. EmotionDep analyzes them
           independently, then combines the evidence.
         </p>
       </div>

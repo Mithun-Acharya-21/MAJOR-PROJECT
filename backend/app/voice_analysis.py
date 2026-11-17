@@ -30,7 +30,7 @@ from typing import Optional
 
 import numpy as np
 
-logger = logging.getLogger("neuroscreen.voice")
+logger = logging.getLogger("emotiondep.voice")
 
 # Minimum audio duration for meaningful analysis (seconds)
 _MIN_DURATION = 0.3

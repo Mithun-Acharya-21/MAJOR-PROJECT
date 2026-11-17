@@ -24,7 +24,7 @@ export function HowItWorks() {
             How it works
           </h2>
           <p className="max-w-2xl text-muted-foreground text-pretty">
-            You move through four short analysis steps. NeuroScreen then fuses the results into
+            You move through four short analysis steps. EmotionDep then fuses the results into
             a single, interpretable screening outcome.
           </p>
         </div>

@@ -12,7 +12,7 @@ export function Logo({ className, href = '/' }: { className?: string; href?: str
     >
       <LogoMark />
       <span className="text-[0.95rem] font-semibold tracking-tight text-foreground">
-        Neuro<span className="text-primary">Screen</span>
+        Depression<span className="text-primary">Detection</span>
       </span>
     </Link>
   )

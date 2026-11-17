@@ -1,0 +1,113 @@
+# Phase 5 evaluation harness configuration (Phase 5B).
+#
+# Single declared source for the split seeds, fold counts, bootstrap defaults,
+# metric set, guard rails and threshold/calibration policy. It is read by
+# ml/evaluation/config.py; nothing here is tuned on data.
+#
+# Protocol references:
+#   docs/phase_5_research_protocol.md
+#   docs/phase_5_statistical_evaluation_plan.md
+#   docs/phase_5_experiment_matrix.md
+
+phase: "5B"
+
+dataset: eatd
+# Participant is the unit: 3 prompted sessions per person are not independent.
+evaluation_unit: participant
+
+# Pre-registered repeat seeds (five repetitions).
+seeds: [42, 43, 44, 45, 46]
+
+outer_cv:
+  splitter: StratifiedGroupKFold
+  n_splits: 5
+  shuffle: true
+  group_key: participant_key            # (source_partition, subject_id)
+  stratify_on: participant_label
+  evaluation_unit: participant
+  # 138 development participants (93 control / 45 positive), 414 sessions.
+  expected_development_participants: 138
+  expected_development_positives: 45
+
+inner_cv:
+  splitter: StratifiedGroupKFold
+  n_splits: 4
+  shuffle: true
+  # Declared, not tuned: inner seed equals the outer repeat seed.
+  seed_policy: outer_repeat_seed
+  built_from: outer_train_partition_only
+  uses_outer_evaluation_data: false
+
+bootstrap:
+  participant_cluster:            # EATD
+    n_resamples: 2000
+    seed: 0
+    alpha: 0.05
+    interval: percentile
+    stratified_within_class: true
+    aggregation: mean             # session probabilities -> one per participant
+  sample_level:                   # AVDD (no participant identity released)
+    n_resamples: 2000
+    seed: 0
+    alpha: 0.05
+    interval: percentile
+    stratified_within_class: true
+    participant_clustering_respected: false
+  min_valid_fraction: 0.95        # below this, withhold the interval and say why
+
+threshold:
+  primary_policy: balanced_accuracy
+  reference_value: 0.5            # reported separately, never tuned
+  alternative_policies: [youden_j, sensitivity_at_specificity]
+  target_specificity: 0.8
+  selection_partition: inner_validation   # inner OOF only
+  forbidden_partitions: [outer_evaluation, locked_test]
+
+calibration:
+  primary: platt
+  secondary: isotonic
+  fit_in_phase_5b: false          # interfaces only; fitting happens in 5C
+  fit_partition: inner_validation
+  forbidden_partitions: [outer_evaluation, locked_test]
+
+metrics:
+  primary: [roc_auc, pr_auc]
+  secondary:
+    [
+      balanced_accuracy,
+      macro_f1,
+      precision,
+      recall,
+      specificity,
+      mcc,
+      confusion_matrix,
+      sensitivity_at_specificity,
+    ]
+  calibration: [brier, ece_equal_frequency, calibration_slope, calibration_intercept]
+  positive_class: 1
+  positive_class_definition: "SDS index >= 50 (probable depression)"
+
+guards:
+  min_positives_per_fold_for_aggregate: 5
+  min_positives_for_test_estimate: 10
+  ece_min_bin_n: 2
+  ece_binning: equal_frequency
+  min_valid_bootstrap_fraction: 0.95
+  metric_undefined_policy: report_null_with_reason
+
+artifact:
+  schema_version: phase5_experiment_artifact_v1
+  schema: ml/configs/phase5/experiment_artifact.schema.json
+  output_dir: results/phase5
+  immutable: true
+  forbidden_output_dirs: [results/phase2, models/experiments, models/final]
+  clinical_validation: false
+  serving: false
+
+locked_test:
+  participants: 24
+  positives: 8
+  # Phase 5B reads only the split assignment, never locked-test labels.
+  read_in_phase_5b: false
+  authorized_accesses_permitted: 1
+  requires_preregistration: true

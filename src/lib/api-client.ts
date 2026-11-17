@@ -1,5 +1,5 @@
 /**
- * API client for the NeuroScreen FastAPI backend.
+ * API client for the EmotionDep FastAPI backend.
  */
 
 const API_BASE = "http://localhost:8000";

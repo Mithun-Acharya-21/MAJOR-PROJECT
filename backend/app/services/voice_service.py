@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-logger = logging.getLogger("neuroscreen.voice_service")
+logger = logging.getLogger("emotiondep.voice_service")
 
 
 def analyze_voice(
@@ -90,15 +90,23 @@ def analyze_voice(
         word_scores = {}
 
     # --- Step 4: Combine voice + transcript scores ---
+    # HONESTY LABEL (Phase 10): the acoustic component is a rule-based
+    # ``acoustic_feature_score`` (silence/rate/energy/pitch heuristics) —
+    # NOT a trained or validated depression probability. The transcript
+    # component is a lexicon proxy. Their blend is labeled accordingly.
     if voice_score is not None and transcript.strip():
         # Weighted blend: 60% transcript, 40% voice
         depressed_prob = 0.6 * transcript_score + 0.4 * voice_score
+        method = "lexicon_proxy_plus_acoustic_feature_score"
     elif voice_score is not None:
         depressed_prob = voice_score
+        method = "acoustic_feature_score"
     elif transcript.strip():
         depressed_prob = transcript_score
+        method = "lexicon_proxy"
     else:
         depressed_prob = 0.5
+        method = "none"
 
     depressed_prob = max(0.01, min(0.99, depressed_prob))
     confidence = abs(depressed_prob - 0.5) * 200
@@ -107,10 +115,12 @@ def analyze_voice(
 
     if depressed_prob >= 0.7:
         risk_level = "high"
-    elif depressed_prob >= 0.4:
+    elif depressed_prob >= 0.5:
         risk_level = "moderate"
     else:
         risk_level = "low"
+
+    acoustic_feature_score = round(voice_score, 4) if voice_score is not None else None
 
     # --- Step 5: Generate explanation ---
     top_features = []
@@ -137,7 +147,13 @@ def analyze_voice(
                     top_features.append({"feature": f"low_{k}", "weight": 0.2, "direction": "risk_increasing"})
 
     explanation = {
-        "method": "voice_acoustic" if voice_score else "transcript_lexicon",
+        "method": method,
+        "score_interpretation": (
+            "acoustic_feature_score: rule-based acoustic marker heuristic "
+            "(silence ratio, speaking rate, energy, pitch variation) — NOT a "
+            "trained or validated depression probability. Transcript part: "
+            "lexicon proxy."
+        ),
         "top_features": top_features,
         "voice_contribution": round(voice_score * 100, 1) if voice_score else None,
         "transcript_contribution": round(transcript_score * 100, 1) if transcript.strip() else None,
@@ -157,6 +173,11 @@ def analyze_voice(
             "depressed": round(depressed_prob * 100, 1),
             "non_depressed": round((1 - depressed_prob) * 100, 1),
         },
+        "acoustic_feature_score": acoustic_feature_score,
+        "signal_type": (
+            "acoustic_feature_score" if voice_score is not None else "lexicon_proxy"
+        ),
+        "model_version": None,
         "features": features,
         "explanation": explanation,
         "risk_level": risk_level,

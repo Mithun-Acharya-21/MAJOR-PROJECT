@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke-test NeuroScreen backend endpoints."""
+"""Smoke-test EmotionDep backend endpoints."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def get(path: str) -> dict:
 
 
 def post_multipart(path: str, fields: dict | None = None, files: list | None = None) -> dict:
-    boundary = "----NeuroScreenTest"
+    boundary = "----EmotionDepTest"
     body = io.BytesIO()
     for key, value in (fields or {}).items():
         body.write(f"--{boundary}\r\n".encode())

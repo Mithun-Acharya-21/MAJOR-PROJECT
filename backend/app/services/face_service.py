@@ -1,6 +1,9 @@
 """
 Live Face Analysis Service — Webcam-based facial expression analysis.
 
+Uses pre-trained FER library for actual facial expression recognition
+instead of brightness-based heuristics.
+
 Aggregates predictions over multiple frames for stable results.
 Used by POST /api/analyze/face endpoint.
 """
@@ -11,9 +14,8 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-import torch
 
-logger = logging.getLogger("neuroscreen.face_service")
+logger = logging.getLogger("emotiondep.face_service")
 
 
 def analyze_live_face(
@@ -21,6 +23,10 @@ def analyze_live_face(
     model_state: Any,
 ) -> Dict[str, Any]:
     """Analyze multiple webcam frames for facial expression depression risk.
+
+    Uses pre-trained FER library for 7-class emotion detection:
+    angry, disgust, fear, happy, sad, surprise, neutral.
+    Maps emotions to depression probability using research-backed weights.
 
     Args:
         frames: List of raw image bytes from webcam.
@@ -41,102 +47,146 @@ def analyze_live_face(
             "error": "No frames provided",
         }
 
-    # --- Analyze each frame ---
-    frame_results = []
-    expression_counts = {"neutral": 0, "happy": 0, "sad": 0, "angry": 0, "fear": 0}
+    # --- Use pre-trained FER expression analyzer ---
+    try:
+        from backend.app.face_expression_analyzer import analyze_multiple_frames
+        result = analyze_multiple_frames(frames)
+    except Exception as e:
+        logger.error("FER analyzer failed: %s — falling back to proxy", e)
+        return _fallback_analysis(frames)
 
+    # --- Map to standard response format ---
+    depression_prob = result["depression_prob"]
+    prediction = result["prediction"]
+    confidence = result["confidence"]
+    risk_level = result["risk_level"]
+
+    # Expression distribution (percentage)
+    emotion_dist = result.get("emotion_distribution", {})
+    expression_probs = {
+        k: round(v * 100, 1) for k, v in emotion_dist.items()
+    }
+
+    # HONESTY LABEL (Phase 9): this is an auxiliary facial-EXPRESSION score
+    # (FER emotion weighting), NOT a validated depression probability. No
+    # image model in this project has been trained to predict depression.
+    expression_note = (
+        "Auxiliary facial-expression score from pretrained FER emotion "
+        "weighting — NOT a validated depression probability."
+    )
+
+    features = {
+        "frame_count": result["total_frames"],
+        "analyzed_count": result["face_detected_count"],
+        "avg_depression_prob": result["depression_prob"],
+        "std_depression_prob": result.get("std_across_frames", 0.0),
+        "expression_distribution": expression_probs,
+        "dominant_emotion": result.get("dominant_emotion_overall", "unknown"),
+    }
+
+    explanation = {
+        "method": "fer_mtcnn_cnn",
+        "frames_analyzed": result["face_detected_count"],
+        "consistency": max(0.0, 1.0 - result.get("std_across_frames", 0) * 3),
+        "expression_distribution": expression_probs,
+        "emotion_weights_used": {
+            "sad": 0.35, "fear": 0.15, "angry": 0.15,
+            "disgust": 0.10, "happy": -0.25, "surprise": -0.10, "neutral": 0.05,
+        },
+        "score_interpretation": expression_note,
+        "note": expression_note,
+    }
+
+    dominant_emotion = result.get("dominant_emotion_overall", "unknown")
+    dominant_expression = result.get("dominant_expression") or (
+        dominant_emotion.capitalize() if dominant_emotion not in ("no_face", "unknown") else None
+    )
+    prediction_label = (
+        f"Expression: {dominant_expression}"
+        if dominant_expression is not None
+        else "No Face Detected"
+    )
+
+    return {
+        "prediction": prediction_label,
+        "dominant_expression": dominant_expression,
+        "dominant_emotion": dominant_emotion,
+        "uncertainty_label": result.get("uncertainty_label", "Multi-frame tracking"),
+        "expression_prominence": result.get("avg_expression_prominence", 0.0),
+        "observed_movement": result.get("observed_movement", {}),
+        "is_depression_prediction": False,
+        "is_depression_model": False,
+        "model_name": "MediaPipe FaceLandmarker (Multi-Frame Aggregator)",
+        "model_type": "Multi-Frame Expression Tracking (Auxiliary)",
+        "processing_status": f"{result['face_detected_count']} of {result['total_frames']} frames analyzed with face detected",
+        "confidence_source": "temporal_frame_consistency",
+        "probability": round(depression_prob * 100, 1),
+        "confidence": round(confidence, 1),
+        "probabilities": {
+            "depressed": round(depression_prob * 100, 1),
+            "non_depressed": round((1 - depression_prob) * 100, 1),
+        },
+        "visual_expression_score": round(depression_prob, 4),
+        "signal_type": "auxiliary_expression_score",
+        "model_version": None,
+        "features": features,
+        "explanation": explanation,
+        "risk_level": risk_level,
+    }
+
+
+def _fallback_analysis(frames: List[bytes]) -> Dict[str, Any]:
+    """Fallback to proxy scoring if FER library is unavailable."""
+    from backend.app.proxy_scorer import score_image
+
+    frame_results = []
     for frame_bytes in frames:
         try:
-            # Try neural model first
-            if model_state.loaded and model_state.vision_branch is not None:
-                from backend.app.models.vision_branch import preprocess_image
-                image_tensor = preprocess_image(frame_bytes).to(model_state.device)
-                with torch.no_grad():
-                    features = model_state.vision_branch(image_tensor)
-                embedding_sum = features.sum().item()
-                prob = 0.5 + np.tanh(embedding_sum * 0.01) * 0.3
-            else:
-                # Fallback to proxy
-                from backend.app.proxy_scorer import score_image
-                prob = score_image(frame_bytes)
-
+            prob = score_image(frame_bytes)
             frame_results.append(prob)
-
-            # Simple expression classification from brightness/contrast
-            from PIL import Image
-            import io
-            img = Image.open(io.BytesIO(frame_bytes)).convert("L")
-            arr = np.array(img)
-            mean_brightness = arr.mean() / 255.0
-            if mean_brightness > 0.6:
-                expression_counts["happy"] += 1
-            elif mean_brightness < 0.3:
-                expression_counts["sad"] += 1
-            else:
-                expression_counts["neutral"] += 1
-
-        except Exception as e:
-            logger.debug("Frame analysis failed: %s", e)
+        except Exception:
             continue
 
     if not frame_results:
         return {
             "prediction": "Non-Depressed",
             "probability": 50.0,
-            "confidence": 50.0,
+            "confidence": 0.0,
             "probabilities": {"depressed": 50.0, "non_depressed": 50.0},
             "features": {"frame_count": len(frames), "analyzed_count": 0},
-            "explanation": {"method": "none"},
+            "explanation": {"method": "proxy_fallback"},
             "risk_level": "low",
             "error": "Could not analyze any frames",
         }
 
-    # --- Aggregate results ---
     avg_prob = np.mean(frame_results)
-    std_prob = np.std(frame_results)
-
-    # Confidence based on consistency (lower std = higher confidence)
-    consistency = max(0, 1.0 - std_prob * 3)
-    confidence = abs(avg_prob - 0.5) * 200 * consistency
-
     depressed_prob = max(0.01, min(0.99, avg_prob))
     prediction = "Depressed" if depressed_prob >= 0.5 else "Non-Depressed"
 
     if depressed_prob >= 0.7:
         risk_level = "high"
-    elif depressed_prob >= 0.4:
+    elif depressed_prob >= 0.5:
         risk_level = "moderate"
     else:
         risk_level = "low"
 
-    # Normalize expression counts
-    total = sum(expression_counts.values()) or 1
-    expression_probs = {k: round(v / total * 100, 1) for k, v in expression_counts.items()}
-
-    features = {
-        "frame_count": len(frames),
-        "analyzed_count": len(frame_results),
-        "avg_depression_prob": round(float(avg_prob), 4),
-        "std_depression_prob": round(float(std_prob), 4),
-        "expression_distribution": expression_probs,
-    }
-
-    explanation = {
-        "method": "multi_frame_aggregation",
-        "frames_analyzed": len(frame_results),
-        "consistency": round(consistency, 3),
-        "expression_distribution": expression_probs,
-    }
-
     return {
         "prediction": prediction,
         "probability": round(depressed_prob * 100, 1),
-        "confidence": round(confidence, 1),
+        "confidence": round(abs(avg_prob - 0.5) * 200, 1),
         "probabilities": {
             "depressed": round(depressed_prob * 100, 1),
             "non_depressed": round((1 - depressed_prob) * 100, 1),
         },
-        "features": features,
-        "explanation": explanation,
+        "signal_type": "proxy_heuristic",
+        "model_version": None,
+        "features": {"frame_count": len(frames), "analyzed_count": len(frame_results)},
+        "explanation": {
+            "method": "proxy_fallback",
+            "note": (
+                "FER library unavailable — brightness/contrast proxy used. "
+                "Weak image-statistics heuristic, not a depression measurement."
+            ),
+        },
         "risk_level": risk_level,
     }

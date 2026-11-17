@@ -1,43 +1,75 @@
-# EmotiSense AI — Python Dependencies
-# Emotion-Aware & Explainable Deep Learning for Depression Detection
+# EmotiSense AI — Python dependency lock (Phase 0)
+#
+# Verified environment (2026-11-13), recorded from the project virtualenv:
+#   Interpreter     .venv/Scripts/python        (Python 3.14.0)
+#   torch           2.13.0+cu130      (CUDA 13.0)
+#   torchvision     0.28.0+cu130
+#   GPU             NVIDIA GeForce RTX 3050 6GB Laptop GPU (6144 MiB)
+#   torch.cuda.is_available() == True
+#
+# IMPORTANT — always use the virtualenv interpreter:
+#   .venv/Scripts/python -m pip install -r requirements.txt
+#   .venv/Scripts/python -m pytest tests -q
+#
+# The system interpreter (plain `python`) also has a torch installed, but it is
+# a CPU-only 2.13.0+cpu build whose huggingface_hub is too new for
+# transformers 5.15.1. Running the test suite with it produces ImportError
+# failures that have nothing to do with the project code. See
+# docs/environment.md, section "Which interpreter".
+#
+# Do not install a CPU-only torch build over this environment.
+# The extra index provides the CUDA 13.0 wheels; on a CPU-only machine,
+# replace the two torch lines with the plain CPU builds.
 
-# Core ML
-torch>=2.0.0
-torchvision>=0.15.0
-transformers>=4.30.0
-numpy>=1.24.0
+--extra-index-url https://download.pytorch.org/whl/cu130
 
-# Image processing
-Pillow>=9.0.0
+# --- Core ML -----------------------------------------------------------------
+torch==2.13.0+cu130
+torchvision==0.28.0+cu130
+transformers==5.15.1
+# transformers 5.15.1 requires huggingface-hub>=1.5.0,<2.0 and raises
+# ImportError at import time otherwise. Pin it explicitly: hub 2.0.0 is a
+# valid resolution for other packages but breaks every model import here.
+huggingface_hub==1.28.0
+numpy==2.5.2
+scikit-learn==1.9.0
+scipy==1.18.0
+# pandas is used for future dataset manifests/analysis (EATD pipeline is stdlib-only)
+pandas==3.0.5
 
-# Web framework (backend)
-fastapi>=0.100.0
-uvicorn>=0.23.0
-python-multipart>=0.0.6
+# --- Image / face ------------------------------------------------------------
+pillow==12.3.0
+opencv-python==5.0.0.93
+mediapipe==1.0.1
 
-# Explainability
-lime>=0.2.0
-shap>=0.42.0
+# --- Audio / speech ----------------------------------------------------------
+av==18.1.0
+soundfile==0.14.0
+librosa==0.11.0
+# Speech-to-text actually used by backend/app/live_stt.py
+faster-whisper==1.2.1
+# eGeMAPS acoustic features for the Phase 2 voice baseline (ml/phase2/voice_egemaps.py)
+# Ships the openSMILE binary wheel; brings audinterface/audformat/audresample with it.
+opensmile==2.6.0
 
-# ML baselines (optional)
-scikit-learn>=1.3.0
+# --- Explainability ----------------------------------------------------------
+lime==0.2.0.1
+shap==0.52.0
 
-# Configuration
-PyYAML>=6.0
+# --- Web backend -------------------------------------------------------------
+fastapi==0.141.1
+uvicorn==0.52.4
+python-multipart==0.0.32
+httpx==0.28.1          # FastAPI TestClient
 
-# Audio processing (optional)
-av>=10.0.0
+# --- Configuration -----------------------------------------------------------
+PyYAML==6.0.3
 
-# Speech-to-text (optional)
-openai-whisper>=20230918
+# --- Test / tooling ----------------------------------------------------------
+pytest==8.4.2
 
-# Jupyter notebooks
-jupyter>=1.0.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-
-# Face detection (optional)
-opencv-python>=4.8.0
-
-# Demo app (optional)
-streamlit>=1.25.0
+# --- Optional: notebooks and demo (not required by the API) -----------------
+jupyter==1.1.1
+matplotlib==3.11.1
+seaborn==0.13.2
+streamlit==1.62.0

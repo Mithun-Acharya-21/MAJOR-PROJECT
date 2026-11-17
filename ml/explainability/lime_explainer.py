@@ -15,7 +15,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
-logger = logging.getLogger("neuroscreen.explainability.lime")
+logger = logging.getLogger("emotiondep.explainability.lime")
 
 
 def explain_text_lime(

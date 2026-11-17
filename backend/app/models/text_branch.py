@@ -1,16 +1,29 @@
 """
-Text Branch — DistilBERT + BiLSTM + Additive Attention
+Text Branch — Transformer → BiLSTM → Additive Attention → Classification Head
 
-Architecture:
-  DistilBERT (encoder, frozen by default)
-    → BiLSTM (2-layer, bidirectional, hidden=256)
+Architecture (Phase 4):
+  Transformer encoder (frozen by default)
+    → BiLSTM (2-layer, bidirectional, hidden=128)
     → Additive attention pooling
-    → 256-d text embedding
+    → 256-d embedding
+    → Classification head: Dropout → Linear(256,128) → ReLU → Dropout → Linear(128,1)
+    → logit  →  sigmoid → P(depressed)
+
+Two supported encoders:
+  * ``distilbert-base-uncased``                              (English; legacy)
+  * ``distilbert/distilbert-base-multilingual-cased``        (104 languages incl. Chinese — used for EATD, see ml/configs/text_model.yaml)
+
+The classification head produces an ACTUAL learned logit — there is no
+hard-coded probability anywhere in this module. A randomly initialized head
+is NOT a valid predictor: ``ModelState`` only exposes model probabilities
+when a TRAINED checkpoint containing ``classifier.*`` weights has been
+loaded (see backend/app/models/text_classifier.py).
 
 Exports:
-  TextBranch   — nn.Module
-  get_tokenizer — returns a DistilBERT fast tokenizer
-  preprocess_text — basic text normalizer
+  TextBranch        — nn.Module (embedding + attention + classification head)
+  get_tokenizer     — cached tokenizer per encoder
+  preprocess_text   — basic text normalizer (language-neutral)
+  ENCODER_PRESETS   — documented encoder metadata
 """
 
 from __future__ import annotations
@@ -22,7 +35,20 @@ import torch
 import torch.nn as nn
 from transformers import AutoTokenizer, AutoModel
 
-_MODEL_NAME = "distilbert-base-uncased"
+# Documented encoder presets (Phase 3 language decision — see ml/configs/text_model.yaml)
+ENCODER_PRESETS = {
+    "distilbert-base-uncased": {
+        "languages": "English",
+        "note": "Legacy English encoder kept for English-input compatibility.",
+    },
+    "distilbert/distilbert-base-multilingual-cased": {
+        "languages": "104 languages (incl. Chinese)",
+        "note": "Used for the Chinese EATD dataset — multilingual cased distillation.",
+    },
+}
+
+DEFAULT_ENCODER = "distilbert-base-uncased"
+CLASSIFIER_HIDDEN = 128
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +56,12 @@ _MODEL_NAME = "distilbert-base-uncased"
 # ---------------------------------------------------------------------------
 
 def preprocess_text(text: str) -> str:
-    """Normalize text while preserving emotionally meaningful content."""
+    """Normalize text while preserving emotionally meaningful content.
+
+    Language-neutral: NFKC normalization, URL/mention masking, whitespace
+    cleanup. No lowercasing (cased encoders) and no language-specific
+    stemming or stopword removal.
+    """
     if not text or not text.strip():
         return ""
     text = unicodedata.normalize("NFKC", text).strip()
@@ -75,18 +106,24 @@ class AdditiveAttentionPooling(nn.Module):
 # ---------------------------------------------------------------------------
 
 class TextBranch(nn.Module):
-    """DistilBERT → BiLSTM → Additive Attention → 256-d embedding."""
+    """Transformer → BiLSTM → Additive Attention → embedding → classification head."""
 
     EMBED_DIM = 256
 
-    def __init__(self, freeze_encoder: bool = True) -> None:
+    def __init__(
+        self,
+        encoder_name: str = DEFAULT_ENCODER,
+        freeze_encoder: bool = True,
+        use_classifier_head: bool = True,
+    ) -> None:
         super().__init__()
-        self.encoder = AutoModel.from_pretrained(_MODEL_NAME)
+        self.encoder_name = encoder_name
+        self.encoder = AutoModel.from_pretrained(encoder_name)
         if freeze_encoder:
             for param in self.encoder.parameters():
                 param.requires_grad = False
 
-        enc_hidden = self.encoder.config.hidden_size  # 768
+        enc_hidden = self.encoder.config.hidden_size  # 768 for both presets
         self.bilstm = nn.LSTM(
             input_size=enc_hidden,
             hidden_size=128,
@@ -99,12 +136,25 @@ class TextBranch(nn.Module):
         self.dropout = nn.Dropout(0.3)
         self.projection = nn.Linear(256, self.EMBED_DIM)
 
+        # --- Phase 4: real classification head (learned logit, no constants) ---
+        self.use_classifier_head = use_classifier_head
+        if use_classifier_head:
+            self.classifier = nn.Sequential(
+                nn.Dropout(0.3),
+                nn.Linear(self.EMBED_DIM, CLASSIFIER_HIDDEN),
+                nn.ReLU(inplace=True),
+                nn.Dropout(0.3),
+                nn.Linear(CLASSIFIER_HIDDEN, 1),  # single logit → sigmoid at inference
+            )
+
     def forward(
         self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
+        Embedding-only forward (used by the cross-attention fusion model).
+
         Returns:
             embedding    (B, 256)
             attn_weights (B, T)
@@ -121,16 +171,37 @@ class TextBranch(nn.Module):
         embedding = self.projection(self.dropout(context))  # (B, 256)
         return embedding, attn_weights
 
+    def classify(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Full classification forward.
+
+        Returns:
+            logits       (B, 1)  — raw learned logit (apply sigmoid for probability)
+            embedding    (B, 256)
+            attn_weights (B, T)
+        """
+        if not self.use_classifier_head:
+            raise RuntimeError(
+                "This TextBranch was built without a classification head "
+                "(use_classifier_head=False)."
+            )
+        embedding, attn_weights = self.forward(input_ids, attention_mask)
+        logits = self.classifier(embedding)           # (B, 1)
+        return logits, embedding, attn_weights
+
 
 # ---------------------------------------------------------------------------
 # Tokenizer
 # ---------------------------------------------------------------------------
 
-_tokenizer = None
+_tokenizers: dict[str, "AutoTokenizer"] = {}
 
 
-def get_tokenizer():
-    global _tokenizer
-    if _tokenizer is None:
-        _tokenizer = AutoTokenizer.from_pretrained(_MODEL_NAME)
-    return _tokenizer
+def get_tokenizer(encoder_name: str = DEFAULT_ENCODER):
+    """Return a cached tokenizer for the given encoder."""
+    if encoder_name not in _tokenizers:
+        _tokenizers[encoder_name] = AutoTokenizer.from_pretrained(encoder_name)
+    return _tokenizers[encoder_name]

@@ -2,7 +2,7 @@
 
 The model loads ONCE on first call and is reused for every audio chunk.
 Uses the ``tiny`` model by default (fast, ~75 MB download on first use).
-Override with the ``NEUROSCREEN_WHISPER_MODEL`` env var.
+Override with the ``EMOTIONDEP_WHISPER_MODEL`` env var.
 """
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ import tempfile
 import threading
 from pathlib import Path
 
-logger = logging.getLogger("neuroscreen.live_stt")
+logger = logging.getLogger("emotiondep.live_stt")
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-_WHISPER_MODEL_NAME = os.environ.get("NEUROSCREEN_WHISPER_MODEL", "tiny")
+_WHISPER_MODEL_NAME = os.environ.get("EMOTIONDEP_WHISPER_MODEL", "tiny")
 _WHISPER_CACHE_DIR = Path(
-    os.environ.get("NEUROSCREEN_WHISPER_DIR", str(Path(__file__).resolve().parent.parent.parent / ".whisper_models"))
+    os.environ.get("EMOTIONDEP_WHISPER_DIR", str(Path(__file__).resolve().parent.parent.parent / ".whisper_models"))
 )
 
 # ---------------------------------------------------------------------------
@@ -75,7 +75,7 @@ def transcribe_audio(audio_bytes: bytes, return_segments: bool = False):
     model = _get_model()
 
     # Write to a temp file — faster-whisper decodes via PyAV which needs a file
-    fd, tmp_path = tempfile.mkstemp(suffix=".webm", prefix="neuroscreen_audio_")
+    fd, tmp_path = tempfile.mkstemp(suffix=".webm", prefix="emotiondep_audio_")
     os.close(fd)
     try:
         with open(tmp_path, "wb") as fh:

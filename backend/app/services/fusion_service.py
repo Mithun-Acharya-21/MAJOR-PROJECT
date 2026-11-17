@@ -12,17 +12,29 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-logger = logging.getLogger("neuroscreen.fusion_service")
+logger = logging.getLogger("emotiondep.fusion_service")
 
 # Default fusion weights (experimentally justified as baseline)
 # Text is weighted highest because it provides the most direct depression signals.
 # Voice is second because acoustic markers are well-documented in depression research.
 # Photo and live face are weighted lower because facial expression alone is a weaker predictor.
+# The questionnaire is a structured-interview signal with moderate weight.
 DEFAULT_WEIGHTS = {
     "text": 0.35,
     "photo": 0.15,
     "face": 0.20,
     "voice": 0.30,
+    "questionnaire": 0.40,
+}
+
+# Weights used when the questionnaire is part of the screening flow —
+# the structured interview is the most direct symptom-level signal.
+SCREENING_WEIGHTS = {
+    "questionnaire": 0.40,
+    "text": 0.25,
+    "voice": 0.20,
+    "face": 0.10,
+    "photo": 0.05,
 }
 
 
@@ -33,12 +45,18 @@ def fuse_multimodal(
     """Fuse results from multiple modalities into a final prediction.
 
     Uses weighted probability fusion where each modality contributes
-    based on its configured weight. Missing modalities are excluded
-    and weights are renormalized.
+    based on its configured weight. Missing modalities are EXCLUDED
+    (no fake predictions are inserted) and weights are renormalized over
+    only the available modalities, e.g.:
+
+        text=0.35, voice=0.30, face=0.20, photo=0.15
+        face & photo unavailable  →  text: 0.35/0.65, voice: 0.30/0.65
 
     Args:
         modality_results: Dict mapping modality name to its analysis result.
-            Keys can be: "text", "photo", "face", "voice"
+            Keys can be: "text", "photo", "face", "voice", "questionnaire".
+            The "questionnaire" key carries the structured screening-interview
+            signal (probability + confidence) produced by the screening service.
         weights: Optional custom weights. If None, uses DEFAULT_WEIGHTS.
 
     Returns:
@@ -73,6 +91,20 @@ def fuse_multimodal(
         m: weights.get(m, 0.1) / total_weight for m in available
     }
 
+    # --- Phase 11: signal-type transparency ---
+    # Only signals explicitly marked 'trained_model_probability' come from a
+    # model trained AND evaluated for depression classification. Everything
+    # else (expression scores, acoustic heuristics, questionnaire mapping) is
+    # auxiliary. The fusion output labels itself accordingly — it is an
+    # EXPERIMENTAL HEURISTIC FUSION, never a clinically validated model.
+    signal_types = {
+        m: available[m].get("signal_type", "rule_based_screening_score")
+        for m in available
+    }
+    validated_modalities = [
+        m for m, st in signal_types.items() if st == "trained_model_probability"
+    ]
+
     # --- Weighted probability fusion ---
     fused_depressed = sum(
         available[m]["probability"] / 100.0 * normalized_weights[m]
@@ -94,7 +126,7 @@ def fuse_multimodal(
 
     if fused_depressed >= 0.7:
         risk_level = "high"
-    elif fused_depressed >= 0.4:
+    elif fused_depressed >= 0.5:
         risk_level = "moderate"
     else:
         risk_level = "low"
@@ -108,6 +140,7 @@ def fuse_multimodal(
             "confidence": result.get("confidence", 50.0),
             "weight": round(normalized_weights[modality], 3),
             "contribution": round(result["probability"] / 100.0 * normalized_weights[modality], 4),
+            "signal_type": signal_types.get(modality, "rule_based_screening_score"),
         }
 
     # --- Build multimodal explanation ---
@@ -136,6 +169,17 @@ def fuse_multimodal(
         "available_modalities": list(available.keys()),
         "weights_used": normalized_weights,
         "agreement_score": round(float(agreement), 3),
+        "signal_types": signal_types,
+        "validated_modalities": validated_modalities,
+        "interpretation_note": (
+            "Experimental heuristic fusion of available modality signals. "
+            "Only signals with signal_type 'trained_model_probability' come "
+            "from models trained and evaluated for depression classification "
+            "(see results/metrics/text_metrics.json). All other signals are "
+            "auxiliary expression/acoustic/questionnaire scores. This fusion "
+            "is NOT clinically validated and must not be reported as "
+            "validated accuracy."
+        ),
     }
 
     return {
@@ -148,6 +192,17 @@ def fuse_multimodal(
         },
         "individual_results": individual_results,
         "fusion_weights": normalized_weights,
+        "fusion_type": "experimental_heuristic_fusion",
+        "is_trained_model": False,
+        "is_clinical_diagnosis": False,
+        "signal_types": signal_types,
+        "validated_modalities": validated_modalities,
         "explanation": explanation,
         "risk_level": risk_level,
+        # Exposed for the uncertainty service: per-modality probabilities + agreement
+        "_fusion_meta": {
+            "agreement_score": float(agreement),
+            "modality_probabilities": {m: available[m]["probability"] / 100.0 for m in available},
+            "n_modalities": len(available),
+        },
     }

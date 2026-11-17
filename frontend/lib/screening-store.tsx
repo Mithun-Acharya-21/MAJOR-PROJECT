@@ -10,6 +10,9 @@ import {
   useState,
 } from 'react'
 import type {
+  AdaptiveProgress,
+  AdaptiveQuestion,
+  CrisisResource,
   FaceResult,
   ModalityKind,
   MultimodalResult,
@@ -17,6 +20,24 @@ import type {
   TextResult,
   VoiceResult,
 } from './types'
+
+/** In-progress (or completed) adaptive-interview snapshot. Kept in the
+ * store — not component state — so the text module survives free
+ * navigation between steps (returning to Text restores the interview
+ * exactly where the user left off instead of restarting it). */
+export interface InterviewSnapshot {
+  sessionId: string
+  question: AdaptiveQuestion | null
+  progress: AdaptiveProgress
+  history: { q: string; a: string }[]
+  done: boolean
+  safety: boolean
+  message?: string
+  crisisResources?: CrisisResource[]
+  /** Currently drafted answer + selected option (restored on return). */
+  draftAnswer?: string
+  draftOptionId?: string | null
+}
 
 interface ScreeningState {
   text?: TextResult
@@ -26,6 +47,11 @@ interface ScreeningState {
   multimodal?: MultimodalResult
   textInput?: string
   sessionId?: string
+  /** The adaptive interview (text branch) was completed. Persisted so the
+   * completion indicator survives reloads; navigation never depends on it. */
+  interviewDone?: boolean
+  /** Live adaptive-interview state (see InterviewSnapshot). */
+  interview?: InterviewSnapshot
   completedSteps: ModalityKind[]
 }
 
@@ -43,6 +69,12 @@ interface ScreeningContextValue extends ScreeningState {
   setVoice: (result: VoiceResult, blob: Blob) => void
   setMultimodal: (result: MultimodalResult) => void
   setSessionId: (id: string) => void
+  /** Record a completed adaptive interview (its screening session id). */
+  setInterviewSession: (id: string) => void
+  /** Persist the live adaptive-interview snapshot (question, answers, drafts). */
+  setInterview: (snapshot: InterviewSnapshot) => void
+  /** Discard the interview snapshot + its completion marks (retake flow). */
+  clearInterview: () => void
   getRawInputs: () => RawInputs
   isComplete: (modality: ModalityKind) => boolean
   reset: () => void
@@ -50,7 +82,7 @@ interface ScreeningContextValue extends ScreeningState {
 
 const ScreeningContext = createContext<ScreeningContextValue | null>(null)
 
-const STORAGE_KEY = 'neuroscreen-session'
+const STORAGE_KEY = 'emotiondep-session'
 
 const EMPTY: ScreeningState = { completedSteps: [] }
 
@@ -147,6 +179,49 @@ export function ScreeningProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, sessionId: id }))
   }, [])
 
+  const setInterviewSession = useCallback(
+    (id: string) =>
+      setState((prev) => ({
+        ...prev,
+        sessionId: id,
+        interviewDone: true,
+        completedSteps: markComplete('text', prev),
+      })),
+    [markComplete],
+  )
+
+  const setInterview = useCallback(
+    (snapshot: InterviewSnapshot) =>
+      setState((prev) => ({
+        ...prev,
+        interview: snapshot,
+        // A finished (or safety-override) interview also records completion,
+        // mirroring setInterviewSession so both paths stay consistent.
+        ...(snapshot.done || snapshot.safety
+          ? {
+              sessionId: snapshot.sessionId,
+              interviewDone: true,
+              completedSteps: markComplete('text', prev),
+            }
+          : {}),
+      })),
+    [markComplete],
+  )
+
+  const clearInterview = useCallback(
+    () =>
+      setState((prev) => ({
+        ...prev,
+        interview: undefined,
+        interviewDone: false,
+        sessionId: undefined,
+        completedSteps: prev.completedSteps.filter((m) => m !== 'text'),
+        // Text evidence changed — any fused result is stale.
+        ...invalidateFusion(),
+      })),
+    [invalidateFusion],
+  )
+
   const getRawInputs = useCallback(() => ({ ...rawInputsRef.current }), [])
 
   const reset = useCallback(() => {
@@ -173,6 +248,9 @@ export function ScreeningProvider({ children }: { children: React.ReactNode }) {
       setVoice,
       setMultimodal,
       setSessionId,
+      setInterviewSession,
+      setInterview,
+      clearInterview,
       getRawInputs,
       isComplete,
       reset,
@@ -185,6 +263,9 @@ export function ScreeningProvider({ children }: { children: React.ReactNode }) {
       setVoice,
       setMultimodal,
       setSessionId,
+      setInterviewSession,
+      setInterview,
+      clearInterview,
       getRawInputs,
       isComplete,
       reset,

@@ -107,6 +107,10 @@ class BiLSTMAttention(nn.Module):
             embedding:    (B, projection_dim) — final text embedding.
             attn_weights: (B, T) — attention weights.
         """
+        # torch>=2.10 on some platforms returns fp16 hidden states from
+        # DeBERTa; the LSTM weights are fp32 — cast before the RNN.
+        if hidden_states.dtype != self.bilstm.weight_ih_l0.dtype:
+            hidden_states = hidden_states.to(self.bilstm.weight_ih_l0.dtype)
         lstm_out, _ = self.bilstm(hidden_states)  # (B, T, hidden_size * 2)
         context, attn_weights = self.attention(lstm_out, attention_mask)
         embedding = self.projection(self.dropout(context))

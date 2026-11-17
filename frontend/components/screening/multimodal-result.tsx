@@ -117,29 +117,37 @@ export function MultimodalResult() {
 
       {multimodal && status === 'idle' ? (
         <>
-          <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-6">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground">
+                Experimental Heuristic Fusion
+              </span>
+            </div>
             <ResultSummary
               level={multimodal.riskLevel}
               probability={multimodal.probability}
               confidence={multimodal.confidence}
-              label="Overall screening indicator"
+              label="Experimental fusion indicator"
             />
+            <p className="text-xs text-muted-foreground">
+              This result represents an exploratory heuristic combination of available modalities. It is <strong>not a medical diagnosis</strong>. Facial expressions and acoustic markers are auxiliary observations.
+            </p>
           </div>
 
           <section className="flex flex-col gap-4">
             <h3 className="text-lg font-medium">Individual modalities</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               {text ? (
-                <ModalityResultCard modality="text" {...text} />
+                <ModalityResultCard {...text} />
               ) : null}
               {photo ? (
-                <ModalityResultCard modality="photo" {...photo} />
+                <ModalityResultCard {...photo} />
               ) : null}
               {face ? (
-                <ModalityResultCard modality="face" {...face} />
+                <ModalityResultCard {...face} />
               ) : null}
               {voice ? (
-                <ModalityResultCard modality="voice" {...voice} />
+                <ModalityResultCard {...voice} />
               ) : null}
             </div>
           </section>

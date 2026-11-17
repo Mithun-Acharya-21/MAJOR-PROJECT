@@ -1,6 +1,6 @@
-# NeuroScreen — Multimodal Depression-Risk Screening
+# Emotion-Aware and Explainable Deep Learning Model for Early Depression Detection Using Attention-Based Transformer Networks
 
-A research prototype for **multimodal depression-risk screening** using Text, Photo, Live Facial Expression, and Voice/Speech analysis. Combines deep learning models with LIME explainable AI and weighted probability fusion.
+A research prototype for **multimodal depression detection** using Text, Photo, Live Facial Expression, and Voice/Speech analysis. Combines deep learning models with LIME explainable AI and weighted probability fusion.
 
 > **Disclaimer**: This is a research/educational screening tool and does **NOT** provide a medical diagnosis. If you or someone you know is struggling, please contact a qualified mental health professional.
 
@@ -9,7 +9,7 @@ A research prototype for **multimodal depression-risk screening** using Text, Ph
 ## Architecture
 
 ```
-Frontend (Next.js — NeuroScreen v0 UI in frontend/)
+Frontend (React — EmotionDep UI in frontend/)
         ↓
     API Layer (FastAPI on :8000)
         ↓
@@ -29,27 +29,33 @@ Frontend (Next.js — NeuroScreen v0 UI in frontend/)
     Final Risk Result + Suggestions
 ```
 
-## Quick start
+## Quick Start (Windows — PowerShell)
 
-```bash
-# Terminal 1 — backend
-python backend/run.py --reload
-
-# Terminal 2 — frontend (Next.js)
-cd frontend
-npm install
-npm run dev
+```powershell
+# Terminal 1 — Backend (FastAPI + CUDA)
+cd C:\Users\mh129\majorProject
+.\.venv\Scripts\python.exe backend\run.py
+# → Uvicorn running on http://localhost:8000
 ```
 
-Set `NEXT_PUBLIC_API_URL=http://localhost:8000` in `frontend/.env.local`.
+```powershell
+# Terminal 2 — Frontend (Next.js 16 + Turbopack)
+cd C:\Users\mh129\majorProject\frontend
+npm run dev
+# → Ready on http://localhost:3000
+```
 
-Open http://localhost:3000 → **Start screening** → complete all 5 steps.
+`frontend/.env.local` already contains `NEXT_PUBLIC_API_URL=http://localhost:8000`.
+
+Open **http://localhost:3000** → Start Screening → complete the interview.
+
+> See [`docs/presentation_guide.md`](docs/presentation_guide.md) for the full demo flow, API reference, and Q&A prep.
 
 ## Project Structure
 
 ```
-neuroscreen/
-├── frontend/              # NeuroScreen v0 UI (Next.js)
+emotiondep/
+├── frontend/              # EmotionDep UI (React)
 │   ├── app/               # Landing + /screening wizard
 │   ├── components/        # Screening steps, LIME, results
 │   └── lib/               # API client + session store
@@ -157,7 +163,7 @@ npm run dev
 ### 4. Open
 
 - **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
+- **Backend API**: http://localhost:8000 (returns a JSON service descriptor)
 - **API Docs**: http://localhost:8000/docs
 
 ## API Endpoints
@@ -198,12 +204,22 @@ Voice → analyze_voice() → voice_prob (weight: 30%)
 - Live Face: 20% — temporal expression patterns
 - Photo: 15% — single-image expression analysis
 
+> ⚠️ The fused output is an **experimental heuristic screening score**, not a
+> clinically validated probability. Only the trained text model (Chinese EATD)
+> has measured, honestly-reported performance; facial/voice/questionnaire
+> components are auxiliary or rule-based scores.
+
 ## Datasets
 
-| Dataset | Type | Samples | Purpose |
+| Dataset | Type | Samples (local copy) | Status |
 |---------|------|---------|---------|
-| EATD | Text | 487 | Depression text classification |
-| FER-2013 | Images | ~28,709 | Facial expression recognition |
+| EATD | Text + audio (Chinese) | 162 participants / 486 sessions (3 prompted topics each) | ✅ Verified manifest + 162-participant splits (`data/processed/eatd/`, seed 42, zero overlap). Legacy 81-subject text splits retained for the existing checkpoint (`data/processed/eatd_splits/`). See `docs/eatd_dataset_card.md`. Trained text model: `results/metrics/text_metrics.json` |
+| FER-2013 | Images | 9,034 train (3 of 7 classes) / 7,178 test | ⚠️ **INCOMPLETE train copy** — NOT usable for 7-class training; see `data/fer2013/validation_report.json` |
+
+**Honesty notes (see `docs/dataset_notes.md`):**
+- EATD is Chinese; the trained text model uses a multilingual encoder. The screening interview (English) is scored by a clearly-labeled lexicon proxy, not by the Chinese-trained model.
+- FER-2013 is a facial-expression dataset and does **not** independently establish depression classification. Expression/acoustic signals are auxiliary only.
+- No aligned multimodal depression dataset exists in this repo, so there is **no multimodal training/validation** — the fusion is an explicitly-labeled experimental heuristic.
 
 ## Testing
 
@@ -216,11 +232,15 @@ python tests/test_fusion.py
 
 ## Limitations
 
-- Research prototype, not a clinical tool
+- Research prototype, not a clinical tool; nothing here is clinically validated
+- The existing text checkpoint was trained on the legacy 55-participant EATD train split and has weak test performance (see `results/metrics/text_metrics.json`). A corrected 162-participant manifest is now available but has not yet been used for retraining.
+- The fusion is an experimental heuristic over mixed signal types — never report it as validated accuracy
+- Facial/voice signals are auxiliary expression/acoustic scores, not depression predictions
+- FER-2013 train copy is incomplete (3/7 classes); expression-model training is not possible with this copy
+- No aligned **face/video** depression dataset exists locally; text+audio ARE aligned in EATD (see `docs/eatd_dataset_card.md`), while face modalities remain separate research experiments
 - Sarcasm, masking, and posed expressions degrade accuracy
 - Dataset bias across demographics
 - No personal data is stored
-- Models use proxy scoring until full training on real datasets
 
 ## License
 

@@ -94,7 +94,7 @@ function ModalityCard({
           {result.probability.toFixed(1)}%
         </span>
         <span className="text-xs text-muted-foreground mb-1">
-          confidence: {result.confidence.toFixed(0)}%
+          {result.prediction} · confidence: {result.confidence.toFixed(0)}%
         </span>
       </div>
       <Progress value={result.probability} className="mt-2 h-1.5" />
@@ -624,14 +624,8 @@ export function ScreeningWizard() {
     setCurrentStep(step);
   };
 
-  const canGoNext = () => {
-    if (currentStep === "text") return !!textResult;
-    if (currentStep === "photo") return !!photoResult;
-    if (currentStep === "face") return !!faceResult;
-    if (currentStep === "voice") return !!voiceResult;
-    return false;
-  };
-
+  // Navigation is free: Next/Previous and the top step buttons are never
+  // gated on assessment completion. Completion only drives the checkmarks.
   const goNext = () => {
     const nextIndex = stepIndex + 1;
     if (nextIndex < STEPS.length) {
@@ -1051,6 +1045,12 @@ export function ScreeningWizard() {
                   >
                     {riskLabel(finalResult.risk_level)}
                   </h3>
+                  <p className="mt-2 text-lg font-semibold">
+                    Screening conclusion:{" "}
+                    <span style={{ color: riskColor(finalResult.risk_level) }}>
+                      {finalResult.prediction}
+                    </span>
+                  </p>
                   <div className="mt-3 flex justify-center gap-8">
                     <div>
                       <p className="text-xs text-muted-foreground">Risk Probability</p>
@@ -1134,7 +1134,7 @@ export function ScreeningWizard() {
                     <div className="text-xs text-muted-foreground">
                       <p className="font-medium text-foreground">Important Notice</p>
                       <p className="mt-1">
-                        NeuroScreen is a research/educational screening tool and does NOT provide a
+                        EmotionDep is a research/educational screening tool and does NOT provide a
                         medical diagnosis. AI-generated screening results should not be treated as
                         clinical conclusions. If you are concerned about your mental health, please
                         consider speaking with a qualified mental-health professional.
@@ -1161,7 +1161,7 @@ export function ScreeningWizard() {
           <Button variant="ghost" onClick={handleReset}>
             <RotateCcw className="size-4" /> Reset
           </Button>
-          {currentStep !== "result" && canGoNext() && (
+          {currentStep !== "result" && (
             <Button onClick={goNext}>
               Next <ChevronRight className="size-4" />
             </Button>

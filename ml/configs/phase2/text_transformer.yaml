@@ -1,0 +1,57 @@
+# Phase 2 — Experiment T2: Transformer text model (EATD, Chinese)
+#
+# Runner:   .venv/Scripts/python scripts/phase2/run_text_transformer.py [--finetune]
+# Module:   ml/phase2/text_transformer.py
+# Artifacts: models/experiments/eatd_text_transformer_v1/        (T2a)
+#            models/experiments/eatd_text_transformer_ft_v1/     (T2b)
+# Results:   results/phase2/text/eatd_text_transformer_v1.json
+#            results/phase2/text/eatd_text_transformer_ft_v1.json
+#
+# Encoder decision: the EATD transcripts are Chinese, so the multilingual
+# DistilBERT already used by backend/app/models/text_branch.py is kept. No
+# English-only encoder is used for this dataset.
+
+experiment_id: eatd_text_transformer_v1
+model_version: text-eatd-transformer-2.0.0
+modality: text
+
+encoder:
+  name: distilbert/distilbert-base-multilingual-cased
+  frozen: true
+  max_seq_len: 128
+  pooling: masked_mean
+  embed_batch_size: 8
+  cache_embeddings: true
+
+head:
+  architecture: Dropout(0.3) → Linear(768,128) → ReLU → Dropout(0.3) → Linear(128,1)
+  hidden: 128
+  dropout: 0.3
+  optimizer: AdamW
+  lr: 1.0e-4
+  weight_decay: 0.01
+  batch_size: 32
+  max_epochs: 200
+  early_stopping_patience: 30
+  loss: BCEWithLogitsLoss(pos_weight = neg/pos)
+  selection_metric: validation participant-level ROC-AUC
+
+finetune_variant:   # T2b — exploratory, run only after T2a is evaluated
+  trainable_encoder_layers: 2
+  encoder_lr: 2.0e-5
+  head_lr: 1.0e-4
+  batch_size: 4
+  gradient_accumulation: 2
+  epochs: 8
+  early_stopping_patience: 2
+  amp: true
+
+data:
+  splits: data/processed/eatd/splits.csv
+  split_policy: participant_level
+
+evaluation:
+  aggregation: mean of session probabilities per participant
+  bootstrap: participant-cluster percentile, n_boot 2000, seed 42
+
+seed: 42

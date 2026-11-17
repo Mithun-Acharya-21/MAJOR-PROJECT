@@ -1,0 +1,47 @@
+# Phase 2 — Experiment V1: openSMILE eGeMAPS + Logistic Regression (EATD audio)
+#
+# Runner:   .venv/Scripts/python scripts/phase2/run_voice_egemaps.py
+# Module:   ml/phase2/voice_egemaps.py
+# Artifact: models/experiments/eatd_voice_egemaps_v1/
+# Result:   results/phase2/voice/eatd_voice_egemaps_v1.json
+
+experiment_id: eatd_voice_egemaps_v1
+model_version: voice-eatd-egemaps-2.0.0
+modality: voice
+
+features:
+  opensmile_version: "2.6.0"
+  feature_set: eGeMAPSv02
+  feature_level: Functionals
+  n_features: 88
+  target_sample_rate: 16000
+  mono: true                 # stereo averaged; all EATD files are 16 kHz
+  min_duration_sec: 1.0
+  nan_policy: impute_train_median
+
+quality_rules:
+  - audio_usable flag from the Phase 1 audit must be true (1 session fails)
+  - all-NaN openSMILE output → excluded and listed, never zero-filled
+  - exclusions recorded in config.feature_extraction.excluded_sessions
+
+preprocessing:
+  imputer: SimpleImputer(median)
+  scaler: StandardScaler
+  fit_on: train only (refit on train+validation for the final model)
+
+grid:
+  C: [0.01, 0.1, 1.0, 10.0]
+  class_weight: [null, balanced]
+  selection_metric: validation participant-level ROC-AUC
+
+classifier:
+  type: LogisticRegression
+  solver: liblinear
+  max_iter: 5000
+  random_state: 0
+
+evaluation:
+  aggregation: mean of session probabilities per participant
+  bootstrap: participant-cluster percentile, n_boot 2000, seed 42
+
+seed: 42

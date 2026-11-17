@@ -7,34 +7,43 @@ import { ScreeningHeader } from '@/components/layout/screening-header'
 import { SiteFooter } from '@/components/layout/site-footer'
 import { ScreeningStepper } from '@/components/screening/screening-stepper'
 import { StepHeader } from '@/components/screening/step-header'
-import { TextAnalysis } from '@/components/screening/text-analysis'
+import { AdaptiveInterview } from '@/components/screening/adaptive-interview'
 import { PhotoAnalysis } from '@/components/screening/photo-analysis'
 import { LiveFaceAnalysis } from '@/components/screening/live-face-analysis'
 import { VoiceAnalysis } from '@/components/screening/voice-analysis'
-import { MultimodalResult } from '@/components/screening/multimodal-result'
+import { ScreeningResultView } from '@/components/screening/screening-result-view'
 import { STEPS } from '@/lib/constants'
 import { useScreening } from '@/lib/screening-store'
 
+/**
+ * Unified multimodal screening flow (spec §3):
+ *   1. Text / assignment-based adaptive interview (modality 1)
+ *   2. Face detection (photo)
+ *   3. Live face analysis (multi-frame)
+ *   4. Voice analysis
+ *   5. Multimodal fusion → final result → explanations → personalized suggestions
+ *
+ * Navigation is FREE: every step (including Results) can be opened at any
+ * time, in any order. Assessment completion is tracked separately and only
+ * drives the completion indicators + the Results content — never access.
+ */
 export default function ScreeningPage() {
-  const { completedSteps, isComplete } = useScreening()
+  const { isComplete, interviewDone, setInterviewSession } = useScreening()
   const [activeStep, setActiveStep] = useState(1)
 
+  /** Completion indicators only — never used to restrict navigation. */
   const completedIds = useMemo(
     () =>
-      STEPS.filter((s) => s.key !== 'result' && isComplete(s.key as 'text' | 'photo' | 'face' | 'voice')).map(
-        (s) => s.id,
-      ),
-    [isComplete, completedSteps],
-  )
-
-  const isReachable = useCallback(
-    (id: number) => {
-      if (id === 1) return true
-      const prev = STEPS.find((s) => s.id === id - 1)
-      if (!prev || prev.key === 'result') return false
-      return isComplete(prev.key as 'text' | 'photo' | 'face' | 'voice') || completedIds.includes(id - 1)
-    },
-    [isComplete, completedIds],
+      STEPS.filter(
+        (s) =>
+          s.key !== 'result' &&
+          (s.key === 'text'
+            ? Boolean(interviewDone)
+            : s.key === 'face_live'
+              ? isComplete('face')
+              : isComplete(s.key as 'photo' | 'voice')),
+      ).map((s) => s.id),
+    [isComplete, interviewDone],
   )
 
   const step = STEPS.find((s) => s.id === activeStep) ?? STEPS[0]
@@ -46,6 +55,16 @@ export default function ScreeningPage() {
   function goBack() {
     setActiveStep((s) => Math.max(s - 1, 1))
   }
+
+  /** Interview finished (or safety override) → record completion + session
+   * id. The result step runs the multimodal pipeline on demand. */
+  const handleInterviewComplete = useCallback(
+    (sessionId: string) => {
+      setInterviewSession(sessionId)
+      goNext()
+    },
+    [setInterviewSession],
+  )
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -61,20 +80,26 @@ export default function ScreeningPage() {
           </Link>
         </div>
 
-        <ScreeningStepper
-          active={activeStep}
-          completed={completedIds}
-          onSelect={setActiveStep}
-          isReachable={isReachable}
-        />
+        <ScreeningStepper active={activeStep} completed={completedIds} onSelect={setActiveStep} />
 
         {step.key !== 'result' ? <StepHeader step={step} /> : null}
 
-        {activeStep === 1 ? <TextAnalysis onNext={goNext} /> : null}
+        {activeStep === 1 ? (
+          <AdaptiveInterview
+            onComplete={handleInterviewComplete}
+            onSafety={handleInterviewComplete}
+            onViewResults={() => setActiveStep(5)}
+          />
+        ) : null}
         {activeStep === 2 ? <PhotoAnalysis onBack={goBack} onNext={goNext} /> : null}
         {activeStep === 3 ? <LiveFaceAnalysis onBack={goBack} onNext={goNext} /> : null}
         {activeStep === 4 ? <VoiceAnalysis onBack={goBack} onNext={goNext} /> : null}
-        {activeStep === 5 ? <MultimodalResult /> : null}
+        {activeStep === 5 ? (
+          <ScreeningResultView
+            onRestart={() => setActiveStep(1)}
+            onGoToStep={(id) => setActiveStep(id)}
+          />
+        ) : null}
       </main>
       <SiteFooter />
     </div>

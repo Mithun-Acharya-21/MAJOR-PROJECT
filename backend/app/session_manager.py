@@ -18,6 +18,8 @@ Architecture:
 Exports:
     SessionManager  — manages session state
     Session         — dataclass for a single session's state
+    ScreeningSession        — dataclass for adaptive screening interview state
+    ScreeningSessionManager — manages adaptive screening sessions
 """
 
 from __future__ import annotations
@@ -29,7 +31,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-logger = logging.getLogger("neuroscreen.session")
+logger = logging.getLogger("emotiondep.session")
 
 
 @dataclass
@@ -307,5 +309,211 @@ class SessionManager:
             session.last_result = result
 
 
-# Global singleton
+# ---------------------------------------------------------------------------
+# Adaptive screening session state
+# ---------------------------------------------------------------------------
+
+# Structured information dimensions tracked across the interview.
+# These are information categories for screening research — NOT medical diagnoses.
+SCREENING_DIMENSIONS = (
+    "mood",
+    "loss_of_interest",
+    "sleep",
+    "energy",
+    "appetite",
+    "concentration",
+    "self_worth",
+    "guilt",
+    "psychomotor_changes",
+    "social_withdrawal",
+    "daily_functioning",
+    "duration",
+    "frequency",
+    "severity",
+)
+
+# Dimensions that carry symptom-severity values (0-3); meta-dimensions
+# (duration/frequency/severity) are stored as descriptive strings.
+SEVERITY_DIMENSIONS = frozenset(
+    {
+        "mood",
+        "loss_of_interest",
+        "sleep",
+        "energy",
+        "appetite",
+        "concentration",
+        "self_worth",
+        "guilt",
+        "psychomotor_changes",
+        "social_withdrawal",
+        "daily_functioning",
+    }
+)
+
+
+class ScreeningSession:
+    """Mutable state for one adaptive screening interview.
+
+    Stored per the project spec:
+      session_id, questions, responses, features, dimension_coverage,
+      asked_question_ids, prediction_history, uncertainty_history,
+      modalities_used, question_count, status (+ recommendation_history).
+    """
+
+    def __init__(self, session_id: Optional[str] = None):
+        self.session_id: str = session_id or str(uuid.uuid4())[:12]
+        self.started_at: float = time.time()
+        self.questions: List[Dict[str, Any]] = []          # questions asked (with ids)
+        self.responses: List[Dict[str, Any]] = []          # raw + analyzed responses
+        self.features: Dict[str, Dict[str, Any]] = {}      # dimension -> {severity, confidence, evidence}
+        self.dimension_coverage: Dict[str, float] = {}     # dimension -> 0..1 coverage
+        self.asked_question_ids: List[str] = []            # exact-duplicate guard
+        self.question_semantics: List[str] = []            # normalized question texts (semantic-dedup)
+        self.prediction_history: List[float] = []          # fused probability after each question
+        self.uncertainty_history: List[float] = []         # uncertainty estimate after each question
+        self.modalities_used: List[str] = ["text"]         # questionnaire text is always present
+        self.question_count: int = 0
+        self.status: str = "in_progress"                  # in_progress | completed | analysis_failed
+        self.recommendation_history: List[str] = []        # recommendation ids already shown
+        self.user_context: Dict[str, Any] = {}             # optional user-provided context
+        self.safety_flag: bool = False
+        self.result: Optional[Dict[str, Any]] = None       # final screening result
+        self.research_trace: Optional[Dict[str, Any]] = None  # spec §31 research trace
+
+    # ------------------------------------------------------------------
+    # Single source of truth for coverage (Phase 13).
+    #
+    # ``compute_dimension_coverage`` (adaptive_question_service) is the ONE
+    # coverage definition: coverage = confidence, boosted slightly by
+    # repeated observations. ``should_stop`` and ``get_progress`` both use
+    # it — there is no longer a separately-incremented dimension_coverage
+    # dict whose values could diverge from the stopping logic.
+    # ------------------------------------------------------------------
+    def refresh_dimension_coverage(self) -> None:
+        """Recompute dimension_coverage from features via the shared formula."""
+        try:
+            from backend.app.services.adaptive_question_service import (
+                compute_dimension_coverage,
+            )
+            self.dimension_coverage = compute_dimension_coverage(self.features)
+        except Exception as e:  # pragma: no cover - non-fatal
+            logger.debug("Could not refresh coverage: %s", e)
+
+    # -- Question/response bookkeeping -------------------------------------
+
+    def record_question(self, question: Dict[str, Any]) -> None:
+        """Store a question that was (or is about to be) asked."""
+        self.questions.append(question)
+        if question.get("id") and question["id"] not in self.asked_question_ids:
+            self.asked_question_ids.append(question["id"])
+        semantic = _normalize_for_dedup(question.get("text", ""))
+        if semantic:
+            self.question_semantics.append(semantic)
+        self.question_count += 1
+
+    def record_response(self, response_text: str, analysis: Dict[str, Any]) -> None:
+        """Store a raw response plus its structured analysis (no chain-of-thought)."""
+        self.responses.append(
+            {
+                "question_id": self.questions[-1]["id"] if self.questions else None,
+                "text": response_text,
+                "analysis": analysis,
+            }
+        )
+        for dim, info in analysis.get("dimensions", {}).items():
+            if dim not in SCREENING_DIMENSIONS:
+                continue
+            existing = self.features.get(dim)
+            confidence = float(info.get("confidence", 0.5))
+            severity = float(info.get("severity", 0))
+            if existing is None:
+                self.features[dim] = {
+                    "severity": severity,
+                    "confidence": confidence,
+                    "observations": 1,
+                }
+            else:
+                # Confidence-weighted merge of repeated observations.
+                total = existing["confidence"] + confidence
+                if total <= 0:
+                    merged_severity = max(existing["severity"], severity)
+                else:
+                    merged_severity = (
+                        existing["severity"] * existing["confidence"]
+                        + severity * confidence
+                    ) / total
+                self.features[dim] = {
+                    "severity": round(merged_severity, 3),
+                    "confidence": min(1.0, max(existing["confidence"], confidence) * 0.9 + confidence * 0.1),
+                    "observations": existing["observations"] + 1,
+                }
+        # Coverage is ALWAYS derived from features (single source of truth).
+        self.refresh_dimension_coverage()
+        # Meta-dimension extraction (duration/frequency) from the analysis payload.
+        for meta_key in ("duration", "frequency", "severity"):
+            value = analysis.get(meta_key)
+            if value and meta_key not in self.features:
+                self.features[meta_key] = {"value": value, "confidence": 0.8}
+        self.refresh_dimension_coverage()
+        # Optional user context supplied with a response.
+        context = analysis.get("context") or {}
+        for key, value in context.items():
+            if value not in (None, ""):
+                self.user_context[key] = value
+        if analysis.get("safety_concern"):
+            self.safety_flag = True
+
+    def record_modalities(self, modalities: List[str]) -> None:
+        """Track which modalities will be used in the final analysis."""
+        for m in modalities:
+            if m and m not in self.modalities_used:
+                self.modalities_used.append(m)
+
+    def to_state_dict(self) -> Dict[str, Any]:
+        """Serializable state matching the documented schema."""
+        return {
+            "session_id": self.session_id,
+            "questions": list(self.questions),
+            "responses": list(self.responses),
+            "features": self.features,
+            "dimension_coverage": self.dimension_coverage,
+            "asked_question_ids": list(self.asked_question_ids),
+            "prediction_history": list(self.prediction_history),
+            "uncertainty_history": list(self.uncertainty_history),
+            "modalities_used": list(self.modalities_used),
+            "question_count": self.question_count,
+            "status": self.status,
+            "recommendation_history": list(self.recommendation_history),
+            "safety_flag": self.safety_flag,
+        }
+
+
+class ScreeningSessionManager:
+    """Manages adaptive screening interview sessions (separate from live analysis)."""
+
+    def __init__(self) -> None:
+        self._sessions: Dict[str, ScreeningSession] = {}
+
+    def create(self, session_id: Optional[str] = None) -> ScreeningSession:
+        session = ScreeningSession(session_id=session_id or str(uuid.uuid4())[:12])
+        self._sessions[session.session_id] = session
+        logger.info("Screening session started: %s", session.session_id)
+        return session
+
+    def get(self, session_id: str) -> Optional[ScreeningSession]:
+        return self._sessions.get(session_id)
+
+    def get_or_create(self, session_id: Optional[str]) -> ScreeningSession:
+        if session_id:
+            existing = self._sessions.get(session_id)
+            if existing:
+                return existing
+        return self.create(session_id)
+
+    def pop(self, session_id: str) -> Optional[ScreeningSession]:
+        return self._sessions.pop(session_id, None)
+
+
+# Global singletons
 session_manager = SessionManager()
+screening_session_manager = ScreeningSessionManager()

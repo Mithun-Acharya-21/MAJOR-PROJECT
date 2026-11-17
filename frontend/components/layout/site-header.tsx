@@ -12,12 +12,18 @@ export function SiteHeader() {
       <div className="mx-auto flex h-16 w-full max-w-[1216px] items-center justify-between px-4 sm:px-6">
         <Logo />
         <nav className="hidden items-center gap-1 md:flex">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/#how-it-works">How it works</Link>
-          </Button>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/#research">Research</Link>
-          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/#how-it-works">How it works</Link>}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/#research">Research</Link>}
+          />
         </nav>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" aria-label="Help">
@@ -27,9 +33,12 @@ export function SiteHeader() {
           <Button variant="ghost" size="icon" aria-label="Profile">
             <User className="size-4" />
           </Button>
-          <Button size="sm" className="ml-1.5 rounded-xl" asChild>
-            <Link href="/screening">Start screening</Link>
-          </Button>
+          <Button
+            size="sm"
+            className="ml-1.5 rounded-xl"
+            nativeButton={false}
+            render={<Link href="/screening">Start screening</Link>}
+          />
         </div>
       </div>
     </header>

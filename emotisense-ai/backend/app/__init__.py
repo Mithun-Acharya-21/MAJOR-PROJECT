@@ -1,2 +1,0 @@
-"""EmotiSense AI backend package."""
-

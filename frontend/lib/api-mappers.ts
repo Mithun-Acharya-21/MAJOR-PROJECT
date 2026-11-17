@@ -4,6 +4,7 @@
  */
 
 import type {
+  FaceExpression,
   FaceResult,
   FeatureContribution,
   LimeExplanation,
@@ -99,7 +100,18 @@ export function mapTextResult(raw: Record<string, unknown>): TextResult {
 export function mapPhotoResult(raw: Record<string, unknown>): PhotoResult {
   const explanation = (raw.explanation ?? {}) as Record<string, unknown>
   const featuresObj = (raw.features ?? {}) as Record<string, unknown>
-  const faceDetected = Boolean(explanation.face_detected ?? featuresObj.face_detected ?? true)
+  const faceDetected = Boolean(raw.face_detected ?? explanation.face_detected ?? featuresObj.face_detected ?? true)
+  const dominant = (raw.dominant_expression ?? explanation.dominant_expression ?? explanation.dominant_emotion ?? featuresObj.dominant_emotion ?? 'Neutral') as string
+  const rawDist = (raw.expression_distribution ?? explanation.emotion_distribution ?? featuresObj.expression_distribution ?? {}) as Record<string, number>
+  const uncertaintyLabel = (raw.uncertainty_label ?? explanation.uncertainty_label) as string | undefined
+  const expressionProminence = (raw.expression_prominence ?? explanation.expression_prominence) as number | undefined
+  const observedMovement = (raw.observed_movement ?? explanation.observed_movement ?? featuresObj.observed_movement) as Record<string, number> | undefined
+
+  const expressions: FaceExpression[] = Object.entries(rawDist).map(([label, value]) => ({
+    label: label.charAt(0).toUpperCase() + label.slice(1),
+    value: toUnit(value),
+  }))
+
   const lime = mapLime('photo', explanation)
 
   return {
@@ -108,6 +120,18 @@ export function mapPhotoResult(raw: Record<string, unknown>): PhotoResult {
     probability: toUnit(raw.probability as number),
     confidence: toUnit(raw.confidence as number),
     faceDetected,
+    dominantExpression: dominant,
+    uncertaintyLabel,
+    expressionProminence: expressionProminence !== undefined ? toUnit(expressionProminence) : undefined,
+    observedMovement,
+    expressionDistribution: rawDist,
+    expressions,
+    modelName: (raw.model_name as string) ?? 'MediaPipe FaceLandmarker (52 Blendshapes)',
+    modelType: (raw.model_type as string) ?? 'Facial Expression & Landmark Detection (Auxiliary)',
+    processingStatus: (raw.processing_status as string) ?? (faceDetected ? 'Face detected — expression analyzed' : 'No face detected'),
+    confidenceSource: (raw.confidence_source as string) ?? 'dominant_expression_proportion',
+    isDepressionModel: false,
+    note: (raw.note ?? explanation.note) as string | undefined,
     lime,
   }
 }

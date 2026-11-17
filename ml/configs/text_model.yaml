@@ -1,0 +1,51 @@
+# Text depression-screening model — EATD (Phase 3/5 configuration)
+#
+# LANGUAGE DECISION (Phase 3)
+# ---------------------------
+# The EATD interview texts in this repository are in CHINESE (verified over
+# all 486 rows). The previous DistilBERT-uncased (English) branch could not
+# legitimately consume this data. We therefore use a multilingual encoder:
+#
+#   model:      distilbert/distilbert-base-multilingual-cased
+#               (104-language cased BERT distillation; covers Chinese)
+#   tokenizer:  its bundled SentencePiece/BERT tokenizer
+#   max_seq_len: 128
+#   preprocessing: backend.app.models.text_branch.preprocess_text
+#                  (NFKC normalization, URL/mention masking, whitespace
+#                  cleanup — language-neutral, no lowercasing, no stemming)
+#   training strategy: encoder frozen, BiLSTM + additive attention pooling +
+#                  classification head trained; class-weighted BCEWithLogits
+#                  for the ~1:2.4 depressed:control subject imbalance
+#   evaluation strategy: validation for model selection, test locked until
+#                  final evaluation (scripts/evaluate_text_model.py)
+#
+# The legacy English DistilBERT branch remains available via
+# TextBranch(encoder_name="distilbert-base-uncased") for English inputs.
+
+model_name: "distilbert/distilbert-base-multilingual-cased"
+max_seq_len: 128
+hidden_size: 128          # BiLSTM hidden per direction
+num_layers: 2             # BiLSTM layers
+attention_hidden: 256     # additive attention projection dim
+embed_dim: 256            # projected embedding dim
+classifier_hidden: 128    # classification head hidden dim
+dropout: 0.3
+freeze_encoder: true
+
+# Training (Phase 5)
+seed: 42
+batch_size: 4
+learning_rate: 0.0003
+weight_decay: 0.01
+epochs: 8
+patience: 3               # early stopping on validation loss
+max_grad_norm: 1.0
+class_weight_mode: "balanced"   # n_samples / (n_classes * count)
+
+# Data (Phase 2 output)
+splits_csv: "data/processed/eatd_splits/eatd_subject_splits.csv"
+dataset_version: "eatd_subject_splits_v1 (seed 42)"
+
+# Reproducibility
+python_version: "3.14"
+torch_version: "2.13.0+cpu"

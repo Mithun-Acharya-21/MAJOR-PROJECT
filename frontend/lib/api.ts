@@ -1,4 +1,4 @@
-// Centralized API client for NeuroScreen.
+// Centralized API client for EmotionDep.
 // All model inference happens on the backend. The client never fabricates
 // predictions, weights, or metrics — it only calls the real endpoints below.
 
@@ -17,8 +17,13 @@ import type {
   HealthStatus,
   ModelMetrics,
   MultimodalResult,
+  PersonalizedRecommendation,
   PhotoResult,
   Recommendation,
+  ScreeningNextResponse,
+  ScreeningResultResponse,
+  ScreeningStartResponse,
+  ScreeningStateResponse,
   TextResult,
   VoiceResult,
 } from './types'
@@ -177,4 +182,74 @@ export const api = {
 
   startSession: () =>
     request<{ session_id: string; status: string }>('/session/start', { method: 'POST' }),
+
+  // ------------------------------------------------------------------
+  // Adaptive screening interview (new backend routes)
+  // ------------------------------------------------------------------
+
+  screeningStart: async (): Promise<ScreeningStartResponse> =>
+    request<ScreeningStartResponse>('/api/screening/start', { method: 'POST' }),
+
+  screeningResponse: async (
+    sessionId: string,
+    answer: string,
+  ): Promise<ScreeningNextResponse> =>
+    request<ScreeningNextResponse>(`/api/screening/${sessionId}/response`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answer }),
+    }),
+
+  /** Submit a structured option selection (with optional free-text extra).
+   * The backend maps the option through the question-specific evidence bank. */
+  screeningResponseOption: async (
+    sessionId: string,
+    answer: string,
+    optionId?: string,
+  ): Promise<ScreeningNextResponse> =>
+    request<ScreeningNextResponse>(`/api/screening/${sessionId}/response`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        optionId ? { answer, option_id: optionId } : { answer },
+      ),
+    }),
+
+  screeningState: async (sessionId: string): Promise<ScreeningStateResponse> =>
+    request<ScreeningStateResponse>(`/api/screening/${sessionId}/state`),
+
+  screeningResult: async (sessionId: string): Promise<ScreeningResultResponse> =>
+    request<ScreeningResultResponse>(`/api/screening/${sessionId}/result`),
+
+  screeningRecommendations: async (
+    sessionId: string,
+  ): Promise<{ recommendations: PersonalizedRecommendation[]; safety_override: boolean }> =>
+    request<{ recommendations: PersonalizedRecommendation[]; safety_override: boolean }>(
+      `/api/screening/${sessionId}/recommendations`,
+    ),
+
+  screeningComplete: async (payload: {
+    sessionId: string
+    photo?: Blob
+    faceFrames?: Blob[]
+    audio?: Blob
+  }): Promise<ScreeningResultResponse> => {
+    const form = new FormData()
+    form.append('session_id', payload.sessionId)
+    if (payload.photo) form.append('photo', payload.photo, 'photo.jpg')
+    if (payload.faceFrames?.length) {
+      payload.faceFrames.forEach((frame, i) => form.append('frames', frame, `frame-${i}.jpg`))
+    }
+    if (payload.audio) form.append('audio', payload.audio, 'recording.webm')
+    return formRequest<ScreeningResultResponse>(
+      `/api/screening/${payload.sessionId}/complete`,
+      form,
+    )
+  },
+
+  /** Research/debug trace for a completed session (spec §31/§32). */
+  screeningResearchTrace: async (
+    sessionId: string,
+  ): Promise<Record<string, unknown>> =>
+    request<Record<string, unknown>>(`/api/screening/${sessionId}/research-trace`),
 }

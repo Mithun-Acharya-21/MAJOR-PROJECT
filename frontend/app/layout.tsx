@@ -1,15 +1,23 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import localFont from 'next/font/local'
 import { ThemeProvider } from '@/components/theme-provider'
 import { ScreeningProvider } from '@/lib/screening-store'
 import './globals.css'
 
-const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
+const geistSans = localFont({
+  src: './fonts/geist-latin.woff2',
+  variable: '--font-geist-sans',
+  display: 'swap',
+})
+const geistMono = localFont({
+  src: './fonts/geist-mono-latin.woff2',
+  variable: '--font-geist-mono',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
-  title: 'NeuroScreen — Multimodal Depression Risk Screening',
+  title: 'EmotionDep — Emotion-Aware Depression Detection',
   description:
     'An AI research tool that analyzes text, facial expressions, photos, and voice to surface depression-related indicators with interpretable screening insights.',
   generator: 'v0.app',
@@ -33,7 +41,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('neuroscreen-theme')||'dark';var d=document.documentElement;d.classList.remove('light','dark');d.classList.add(t);}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('emotiondep-theme')||'dark';var d=document.documentElement;d.classList.remove('light','dark');d.classList.add(t);}catch(e){}})();`,
           }}
         />
       </head>

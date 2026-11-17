@@ -199,7 +199,7 @@ export function LiveFaceAnalysis({ onBack, onNext }: { onBack: () => void; onNex
         </div>
       ) : null}
 
-      <StepFooter onBack={onBack} onNext={onNext} nextDisabled={!face} nextLabel="Continue to voice" />
+      <StepFooter onBack={onBack} onNext={onNext} nextLabel="Continue to voice" />
     </div>
   )
 }

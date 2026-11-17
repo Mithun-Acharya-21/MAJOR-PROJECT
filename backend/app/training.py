@@ -1,7 +1,7 @@
 """
 Real Training Pipeline — Multimodal Early Depression Detection
 
-Trains the NeuroScreen models (TextBranch / VisionBranch /
+Trains the EmotionDep models (TextBranch / VisionBranch /
 MultimodalFusionModel) on user-provided local datasets:
 
   * Text datasets        — CSV with ``text`` and ``label`` columns
@@ -97,7 +97,7 @@ class TrainConfig:
     val_split: float = 0.2
     seed: int = 42
     unfreeze_encoder: bool = False
-    checkpoint_dir: str = DEFAULT_CHECKPOINT_DIR
+    checkpoint_dir: str = DEFAULT_CHECKPOINT_DIR  # noqa: F841
     device: str = "auto"
     max_seq_len: int = 128
 

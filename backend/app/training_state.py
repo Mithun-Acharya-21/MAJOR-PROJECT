@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from backend.app.baselines import get_baseline_metrics
 
-logger = logging.getLogger("neuroscreen.training")
+logger = logging.getLogger("emotiondep.training")
 
 # Mutable training session state (mutated by the background thread)
 _session: Dict[str, Any] = {
@@ -88,7 +88,7 @@ def start_training(
     _session["checkpoint_dir"] = None
 
     thread = threading.Thread(
-        target=_run_training, args=(cfg, on_complete), daemon=True, name="neuroscreen-train"
+        target=_run_training, args=(cfg, on_complete), daemon=True, name="emotiondep-train"
     )
     thread.start()
     return {"status": "started", **get_training_status()}

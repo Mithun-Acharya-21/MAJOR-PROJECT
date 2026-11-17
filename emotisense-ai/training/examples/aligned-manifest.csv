@@ -1,5 +1,0 @@
-record_id,participant_id,session_id,split,purpose,alignment
-demo-001,participant-a,session-a,train,multimodal_depression_finetuning,participant_session_aligned
-demo-002,participant-b,session-b,validation,multimodal_depression_evaluation,participant_session_aligned
-demo-003,participant-c,session-c,test,multimodal_depression_evaluation,participant_session_aligned
-

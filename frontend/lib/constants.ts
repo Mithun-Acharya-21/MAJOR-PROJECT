@@ -3,7 +3,10 @@ import type { ModalityKind, RiskLevel } from './types'
 
 export interface StepConfig {
   id: number
-  key: ModalityKind | 'result'
+  /** Modality the step feeds; steps 1 and 3 both feed the text/face branch
+   * set. ``face_live`` distinguishes the live-camera branch from the photo
+   * branch in the UI while both map to existing store modalities. */
+  key: ModalityKind | 'face_live' | 'result'
   slug: string
   label: string
   short: string
@@ -16,26 +19,27 @@ export const STEPS: StepConfig[] = [
     id: 1,
     key: 'text',
     slug: 'text',
-    label: 'Text Analysis',
+    label: 'Text / Assignment Questions',
     short: 'Text',
-    description: 'Describe how you have been feeling recently.',
+    description:
+      'An adaptive interview — each question has its own options, and every answer updates your screening profile.',
     icon: FileText,
   },
   {
     id: 2,
     key: 'photo',
     slug: 'photo',
-    label: 'Photo Analysis',
-    short: 'Photo',
-    description: 'Analyze facial-expression information from a photo.',
+    label: 'Face Detection',
+    short: 'Face',
+    description: 'Analyze facial-expression information from an uploaded photo.',
     icon: Camera,
   },
   {
     id: 3,
-    key: 'face',
-    slug: 'face',
-    label: 'Live Face',
-    short: 'Face',
+    key: 'face_live',
+    slug: 'face_live',
+    label: 'Live Face Analysis',
+    short: 'Live Face',
     description: 'Capture facial expressions over several webcam frames.',
     icon: ScanFace,
   },
@@ -52,17 +56,28 @@ export const STEPS: StepConfig[] = [
     id: 5,
     key: 'result',
     slug: 'result',
-    label: 'Result',
+    label: 'Multimodal Result',
     short: 'Result',
-    description: 'Your combined multimodal screening result.',
+    description: 'Your combined multimodal screening result and personalized suggestions.',
     icon: Sparkles,
   },
 ]
 
 export const MODALITY_META: Record<ModalityKind, { label: string; icon: LucideIcon }> = {
   text: { label: 'Text', icon: FileText },
-  photo: { label: 'Photo', icon: Camera },
+  photo: { label: 'Face', icon: Camera },
   face: { label: 'Live Face', icon: ScanFace },
+  voice: { label: 'Voice', icon: AudioLines },
+}
+
+/** Labels for the four contract modalities of the final result (§30-2). */
+export const CONTRACT_MODALITY_LABELS: Record<
+  'text' | 'face' | 'live_face' | 'voice',
+  { label: string; icon: LucideIcon }
+> = {
+  text: { label: 'Text', icon: FileText },
+  face: { label: 'Face Detection', icon: Camera },
+  live_face: { label: 'Live Face', icon: ScanFace },
   voice: { label: 'Voice', icon: AudioLines },
 }
 

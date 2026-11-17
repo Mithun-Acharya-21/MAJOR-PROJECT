@@ -26,25 +26,32 @@ function formatTime(seconds: number) {
 }
 
 export function VoiceAnalysis({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
-  const { voice, setVoice, sessionId, setSessionId } = useScreening()
+  const { voice, setVoice, sessionId } = useScreening()
   const { status, error: micError, seconds, amplitude, blob, start, stop, reset } = useRecorder()
   const [phase, setPhase] = useState<'idle' | 'loading' | 'error'>('idle')
   const [error, setError] = useState('')
   const [showLime, setShowLime] = useState(false)
   const [transcript, setTranscript] = useState(voice?.transcript ?? '')
 
+  // Voice-only session id for transcript accumulation. Deliberately kept
+  // local: writing it into the shared screening `sessionId` would replace the
+  // adaptive-interview session and break the Results pipeline when Voice is
+  // opened before (or without) the interview. The screening sessionId, when
+  // present, is preferred for analysis so the backend ties results together.
+  const [voiceSessionId, setVoiceSessionId] = useState<string | null>(null)
+
   useEffect(() => {
-    if (!sessionId) {
-      api.startSession().then((s) => setSessionId(s.session_id)).catch(() => {})
+    if (!sessionId && !voiceSessionId) {
+      api.startSession().then((s) => setVoiceSessionId(s.session_id)).catch(() => {})
     }
-  }, [sessionId, setSessionId])
+  }, [sessionId, voiceSessionId])
 
   async function analyze() {
     if (!blob) return
     setPhase('loading')
     setError('')
     try {
-      const result = await api.analyzeVoice(blob, sessionId)
+      const result = await api.analyzeVoice(blob, sessionId ?? voiceSessionId ?? undefined)
       setVoice(result, blob)
       setTranscript(result.transcript)
       setPhase('idle')
@@ -190,12 +197,7 @@ export function VoiceAnalysis({ onBack, onNext }: { onBack: () => void; onNext: 
         </div>
       ) : null}
 
-      <StepFooter
-        onBack={onBack}
-        onNext={onNext}
-        nextDisabled={!voice}
-        nextLabel="View multimodal result"
-      />
+      <StepFooter onBack={onBack} onNext={onNext} nextLabel="View multimodal result" />
     </div>
   )
 }

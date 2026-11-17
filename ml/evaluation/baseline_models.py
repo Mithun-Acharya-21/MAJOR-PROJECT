@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-logger = logging.getLogger("neuroscreen.evaluation.baselines")
+logger = logging.getLogger("emotiondep.evaluation.baselines")
 
 
 @dataclass

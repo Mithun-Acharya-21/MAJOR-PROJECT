@@ -8,11 +8,11 @@ export function SiteFooter() {
           <div className="flex items-center gap-2.5">
             <LogoMark />
             <span className="text-sm font-semibold tracking-tight">
-              Neuro<span className="text-primary">Screen</span>
+              Depression<span className="text-primary">Detection</span>
             </span>
           </div>
           <p className="max-w-md text-sm leading-relaxed text-muted-foreground text-pretty">
-            NeuroScreen is a research and educational screening tool. It does not provide a
+            EmotionDep is a research and educational screening tool. It does not provide a
             medical diagnosis, and its results are model-generated indicators rather than
             clinical conclusions.
           </p>

@@ -17,7 +17,7 @@ export function ResearchSection() {
             Different signals offer different perspectives
           </h2>
           <p className="text-muted-foreground text-pretty leading-relaxed">
-            NeuroScreen combines multiple input modalities rather than relying on a single
+            EmotionDep combines multiple input modalities rather than relying on a single
             signal. Language, facial expression, and speech each capture something distinct, and
             weighing them together produces a more balanced screening perspective than any one
             alone.

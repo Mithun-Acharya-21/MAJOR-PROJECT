@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NeuroScreen Backend — Entry Point
+EmotionDep Backend — Entry Point
 
 Run the FastAPI server:
     python backend/run.py
@@ -20,7 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def main():
-    parser = argparse.ArgumentParser(description="NeuroScreen FastAPI Server")
+    parser = argparse.ArgumentParser(description="EmotionDep FastAPI Server")
     parser.add_argument("--host", default="localhost", help="Host to bind (default: localhost)")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind (default: 8000)")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
@@ -33,7 +33,7 @@ def main():
         print("  pip install uvicorn")
         sys.exit(1)
 
-    print(f"Starting NeuroScreen backend on {args.host}:{args.port}")
+    print(f"Starting EmotionDep backend on {args.host}:{args.port}")
     uvicorn.run(
         "backend.app.main:app",
         host=args.host,
