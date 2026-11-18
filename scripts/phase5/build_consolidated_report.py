@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-ROOT = Path(r"C:\Users\mh129\majorProject")
+ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "results" / "phase5"
 
 
@@ -398,12 +398,12 @@ def build_report():
 
 if __name__ == "__main__":
     report = build_report()
-    out_json = Path(r"C:\Users\mh129\majorProject\results\phase5\phase5_consolidated_report.json")
+    out_json = OUT_DIR / "phase5_consolidated_report.json"
     out_json.write_text(json.dumps(report, indent=2))
     print(f"Written: {out_json}")
 
     # Also write a markdown summary
-    out_md = Path(r"C:\Users\mh129\majorProject\results\phase5\phase5_consolidated_report.md")
+    out_md = OUT_DIR / "phase5_consolidated_report.md"
     lines = [
         "# NeuroScreen Phase 5 — Consolidated Results Report",
         "",

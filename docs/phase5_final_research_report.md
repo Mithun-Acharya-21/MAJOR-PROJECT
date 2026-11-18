@@ -4,7 +4,7 @@
 > This report documents experimental findings from a controlled research investigation.  
 > All results are development-set estimates. The locked test partition has not been accessed.
 
-**Repository:** `C:\Users\mh129\majorProject`  
+**Repository:** project root  
 **Report generated:** 2026-11-16  
 **Protocol document:** `docs/phase_5_research_protocol.md`  
 **Status:** Development phase complete; locked-test confirmation pending owner authorization (§4.9)

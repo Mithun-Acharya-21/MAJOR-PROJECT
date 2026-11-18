@@ -21,12 +21,11 @@
 
 ## 2. Startup Commands
 
-Open **two separate terminals** in `C:\Users\mh129\majorProject`.
+Open **two separate terminals** at the repository root.
 
 ### Terminal 1 — Backend (FastAPI)
 
 ```powershell
-cd C:\Users\mh129\majorProject
 .\.venv\Scripts\python.exe backend\run.py
 ```
 
@@ -41,7 +40,7 @@ INFO:     Uvicorn running on http://localhost:8000
 ### Terminal 2 — Frontend (Next.js)
 
 ```powershell
-cd C:\Users\mh129\majorProject\frontend
+Set-Location frontend
 npm run dev
 ```
 

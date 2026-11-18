@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import numpy as np
 
-ROOT = Path(r"C:\Users\mh129\majorProject")
+ROOT = Path(__file__).resolve().parents[2]
 CACHE_PATH = ROOT / "data" / "processed" / "avdd_tcmi_phase5" / "avdd_visual_cache.npz"
 MANIFEST_PATH = ROOT / "data" / "processed" / "avdd_tcmi_phase5" / "avdd_visual_cache_manifest.json"
 ARCHIVE_PATH = ROOT / "data" / "raw" / "avdd_tcmi" / "AVDD-TCMI-dataset.zip"

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CheckCircle2, Loader2, Send, ShieldAlert } from 'lucide-react'
+import { CheckCircle2, Loader2, Send, ShieldAlert, Pause, Play, Info, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Progress } from '@/components/ui/progress'
@@ -47,6 +47,8 @@ export function AdaptiveInterview({
   const [history, setHistory] = useState<{ q: string; a: string }[]>([])
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const [showReview, setShowReview] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const startInterview = useCallback(() => {
@@ -294,7 +296,83 @@ export function AdaptiveInterview({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Adaptive progress — never a fake "Question N of M" */}
+      {/* Purpose Explanation & Research Scope Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-xs">
+        <div className="flex items-start gap-2.5">
+          <Info className="size-4 text-primary shrink-0 mt-0.5" />
+          <div>
+            <span className="font-semibold text-foreground">
+              Experimental Adaptive Research Questionnaire
+            </span>
+            <p className="text-muted-foreground mt-0.5">
+              Assesses 6 symptom dimensions (mood, sleep, energy, interest, focus, social engagement). Estimated duration: ~3–5 min. Participation is voluntary.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {history.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowReview(!showReview)}
+              className="h-7 text-xs rounded-lg gap-1"
+            >
+              <Eye className="size-3" />
+              {showReview ? 'Hide Review' : `Review Answers (${history.length})`}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsPaused(!isPaused)}
+            className="h-7 text-xs rounded-lg gap-1"
+          >
+            {isPaused ? <Play className="size-3 text-emerald-500" /> : <Pause className="size-3 text-amber-500" />}
+            {isPaused ? 'Resume' : 'Pause'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Paused State Banner */}
+      {isPaused ? (
+        <div className="flex flex-col items-center justify-center p-8 rounded-2xl border border-border bg-card text-center gap-3">
+          <Pause className="size-8 text-amber-500" />
+          <h3 className="font-semibold text-base">Interview Paused</h3>
+          <p className="text-xs text-muted-foreground max-w-md">
+            Your progress ({progress.questions_answered} questions answered, {progress.progress_percent}%) has been safely preserved. Take your time and click Resume when you are ready to continue.
+          </p>
+          <Button 
+            size="sm" 
+            onClick={() => setIsPaused(false)} 
+            className="rounded-xl gap-1.5 mt-2"
+          >
+            <Play className="size-3.5" />
+            Resume Interview
+          </Button>
+        </div>
+      ) : (
+        <>
+          {/* Response Review Drawer / Accordion */}
+          {showReview && history.length > 0 && (
+            <div className="rounded-2xl border border-border bg-muted/30 p-4 space-y-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Answered Questionnaire History ({history.length} responses)
+              </h4>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {history.map((h, i) => (
+                  <div key={i} className="rounded-xl border border-border/50 bg-background/60 p-3 text-xs">
+                    <p className="font-medium text-foreground">Q{i + 1}: {h.q}</p>
+                    <p className="mt-1 text-muted-foreground font-mono">Response: {h.a}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Adaptive progress — never a fake "Question N of M" */}
       <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5">
         <div className="flex items-center justify-between text-sm">
           <span className="font-medium">Questions answered: {progress.questions_answered}</span>
@@ -426,6 +504,8 @@ export function AdaptiveInterview({
           </div>
         </div>
       ) : null}
+      </>
+      )}
 
       {error ? <p className="text-sm text-risk-high">{error}</p> : null}
       <div ref={bottomRef} />

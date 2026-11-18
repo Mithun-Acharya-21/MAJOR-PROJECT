@@ -159,6 +159,15 @@ from backend.app.screening_routes import router as screening_router
 screening_router.model_state = _state  # shared ModelState for modality services
 app.include_router(screening_router)
 
+# DAIC-WOZ Research Pipeline routes
+from backend.app.daic_woz.routes import router as daic_woz_router
+app.include_router(daic_woz_router)
+
+# Doctor-Facing Clinical Research Dashboard routes
+from backend.app.doctor_routes import router as doctor_router
+app.include_router(doctor_router)
+
+
 
 # ===================================================================
 # Routes

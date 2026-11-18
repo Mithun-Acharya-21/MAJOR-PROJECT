@@ -24,6 +24,18 @@ export function SiteHeader() {
             nativeButton={false}
             render={<Link href="/#research">Research</Link>}
           />
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/daic-woz">DAIC-WOZ Benchmark</Link>}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/doctor">Doctor Portal</Link>}
+          />
         </nav>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" aria-label="Help">

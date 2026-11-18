@@ -3,7 +3,7 @@
 **Date:** 2026-11-16  
 **Project:** NeuroScreen (Multimodal Depression-Risk Screening Research)  
 **Auditor:** Senior ML Research Auditor & Systems Engineer  
-**Repository:** `C:\Users\mh129\majorProject`  
+**Repository:** project root  
 **Git Working Tree:** Pre-existing dirty tree preserved (296+ tracked/untracked changes strictly respected; no destructive Git commands executed).
 
 ---

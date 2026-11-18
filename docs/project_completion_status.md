@@ -132,11 +132,10 @@ All endpoints verified against `http://localhost:8000`:
 
 ```powershell
 # Terminal 1 — Backend
-cd C:\Users\mh129\majorProject
 .\.venv\Scripts\python.exe backend\run.py
 
 # Terminal 2 — Frontend  
-cd C:\Users\mh129\majorProject\frontend
+Set-Location frontend
 npm run dev
 
 # Then open: http://localhost:3000

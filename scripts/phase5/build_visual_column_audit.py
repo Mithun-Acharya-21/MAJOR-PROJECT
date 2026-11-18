@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\mh129\majorProject")
+ROOT = Path(__file__).resolve().parents[2]
 INPUT_JSON = ROOT / "data" / "reports" / "avdd_tcmi_visual_validation.json"
 OUT_JSON = ROOT / "data" / "reports" / "avdd_visual_feature_column_audit.json"
 

@@ -34,7 +34,7 @@ The resume completed at 11:54 with exit code 0. Full evidence in
 
 | Item | Result |
 |---|---|
-| Project root | `C:\Users\mh129\majorProject` **[verified]** |
+| Project root | Repository root **[verified]** |
 | Interpreter | `.venv/Scripts/python` — **Python 3.14.0**, torch 2.13.0+cu130, CUDA available **[verified]** |
 | Requested interpreter | The brief says Python 3.12. The verified virtualenv is 3.14.0; the CUDA environment was **not** replaced. **[verified discrepancy]** |
 | `datasets` package | Not installed; `huggingface_hub` 1.28.0 is, so HF files are fetched via the hub API without adding a package **[verified]** |

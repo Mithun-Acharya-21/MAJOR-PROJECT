@@ -1,7 +1,7 @@
 # Initial Repository Audit — NeuroScreen
 
-Date: 2026-11-16 (Phase A). Scope: read-only inspection of the repository at
-`C:\Users\mh129\majorProject`. No source code, data, model, split or artifact was
+Date: 2026-11-16 (Phase A). Scope: read-only inspection of the repository root.
+No source code, data, model, split or artifact was
 modified by this audit. Pre-existing uncommitted working-tree changes (modified and
 deleted files) are preserved untouched.
 
